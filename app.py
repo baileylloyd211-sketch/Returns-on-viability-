@@ -9,12 +9,12 @@ import streamlit as st
 # - Unique widget keys everywhere to avoid DuplicateWidgetID
 # =========================================================
 
-st.set_page_config(page_title="3-Lens Diagnostic (25Q + 10)", layout="centered")
+st.set_page_config(page_title="Trifactor (25Q + 10)", layout="centered")
 
 # --------------------------
 # UI Header
 # --------------------------
-st.title("3-Lens Diagnostic (25 questions)")
+st.title("Trifactor (25 questions)")
 st.caption("Pick a lens first. Same scoring. Different lens. Randomized questions + targeted follow-ups.")
 
 # --------------------------
@@ -464,6 +464,35 @@ def render_readout(title, lens, questions_all, answers_all):
             st.write(f"  - {lens_translation(lens, v)}")
 
     return overall, per_variable, scored_qs_sorted, targets
+
+# --------------------------
+# Leash / Completion Framing
+# --------------------------
+st.divider()
+
+st.markdown(
+    "**This tool shows you where the pressure is.**  \n"
+    "**It does not design the fix.**"
+)
+
+st.markdown(
+    "Trifactor is a first-pass diagnostic. If you’re dealing with something complex, layered, "
+    "or long-standing, the next step isn’t more questions — it’s interpretation."
+)
+
+st.markdown(
+    "If you want to work this through properly, contact me."
+)
+
+st.markdown(
+    "**Email:** yourname@giveittogod.com  \n"
+    "**Subject:** Trifactor follow-up"
+)
+
+st.caption(
+    "Trifactor is not therapy, coaching, or professional advice. "
+    "It’s a pressure-mapping tool. What you do next matters more than the score."
+)
 
 # --------------------------
 # Results (after 25)
