@@ -485,7 +485,7 @@ st.markdown(
 )
 
 st.markdown(
-    "**Email:** yourname@giveittogod.com  \n"
+    "**Email:** contributionism@giveittogot.com  \n"
     "**Subject:** Trifactor follow-up"
 )
 
