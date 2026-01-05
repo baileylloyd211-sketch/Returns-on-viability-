@@ -867,8 +867,11 @@ with st.sidebar:
     st.header("Controls")
     st.write("Initial questions: **25**")
     st.write("Follow-ups: **10**")
-if st.button("Reset", key="reset_sidebar"):
-    
+
+    if st.button("Reset", key="reset_sidebar"):
+        reset_run()
+        st.rerun()
+
 # --------------------------
 # Setup Screen (Lens Picker)
 # --------------------------
