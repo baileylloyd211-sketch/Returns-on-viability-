@@ -531,6 +531,1072 @@ if st.session_state.stage == "results":
         language="python",
     )
 
+import random
+from statistics import pstdev
+import streamlit as st
+
+# =========================================================
+# 3-Lens Diagnostic (25 + 10 Follow-ups) — Single File
+# Lens selection happens FIRST (setup screen)
+# Session state is initialized BEFORE any stage checks
+# =========================================================
+
+st.set_page_config(page_title="3-Lens Diagnostic (25Q + 10)", layout="centered")
+
+st.title("3-Lens Diagnostic (25 questions)")
+st.caption("Pick a lens first. Same scoring. Different lens. Randomized questions + targeted follow-ups.")
+
+# --------------------------
+# Constants / Scale
+# --------------------------
+LENSES = ["Interpersonal", "Financial", "Big Picture"]
+
+SCALE_LABELS = {
+    0: "0 — Not at all / Never",
+    1: "1 — Rarely",
+    2: "2 — Sometimes",
+    3: "3 — Often",
+    4: "4 — Almost always",
+}
+
+VARIABLE_WEIGHTS = {
+    "Baseline": 1.2,
+    "Clarity": 1.1,
+    "Resources": 1.1,
+    "Boundaries": 1.1,
+    "Execution": 1.2,
+    "Feedback": 1.0,
+}
+
+def clamp(n, lo, hi):
+    return max(lo, min(hi, n))
+
+def zone_name(score_0_100: float) -> str:
+    if score_0_100 < 45:
+        return "RED"
+    if score_0_100 < 70:
+        return "YELLOW"
+    return "GREEN"
+
+def compassionate_zone_line(zone):
+    return {
+        "RED": "needs support now (signal, not failure)",
+        "YELLOW": "workable, but inconsistent under stress",
+        "GREEN": "stable and helping you",
+    }.get(zone, zone)
+
+def lens_readout_intro(lens: str) -> str:
+    if lens == "Interpersonal":
+        return "Interpreting through **relationship dynamics**: tension, clarity, boundaries, follow-through."
+    if lens == "Financial":
+        return "Interpreting through **money stability + control**: clarity, buffer, boundaries, execution."
+    return "Interpreting through **mission control**: clarity, focus, resources, execution, feedback loops."
+
+def lens_translation(lens: str, variable: str) -> str:
+    mapping = {
+        "Interpersonal": {
+            "Baseline": "Emotional baseline under contact",
+            "Clarity": "What you want / what’s true",
+            "Resources": "Support + emotional bandwidth",
+            "Boundaries": "Limits + self-respect in action",
+            "Execution": "Having the talk / doing the thing",
+            "Feedback": "Repair, learning, reality-checking",
+        },
+        "Financial": {
+            "Baseline": "Stability under money stress",
+            "Clarity": "Numbers + priorities clarity",
+            "Resources": "Income/buffer/tooling",
+            "Boundaries": "Spending boundaries + exposure control",
+            "Execution": "Bills/actions actually done",
+            "Feedback": "Review, adjust, remove leaks",
+        },
+        "Big Picture": {
+            "Baseline": "Stability + momentum",
+            "Clarity": "North star + next step",
+            "Resources": "Energy/support/environment",
+            "Boundaries": "Focus protection + saying no",
+            "Execution": "Shipping + completion",
+            "Feedback": "Measurement + iteration",
+        },
+    }
+    return mapping.get(lens, {}).get(variable, variable)
+
+def compassionate_summary(lens, lowest_label):
+    if lens == "Interpersonal":
+        return f"It looks like **{lowest_label}** is where the relationship pressure is concentrating. That usually means you’re carrying too much, or things aren’t resolving cleanly."
+    if lens == "Financial":
+        return f"It looks like **{lowest_label}** is where the money pressure is concentrating. That’s usually a buffer/system issue—not a character flaw."
+    return f"It looks like **{lowest_label}** is where the mission pressure is concentrating. That usually means the goal is real, but the structure/bandwidth isn’t matching it yet."
+
+# --------------------------
+# Question Bank (25 per lens) — starter v1
+# Each question: id, text, variable, weight, reverse
+# reverse=True means higher answer is worse, so we flip: score = 4 - answer
+# --------------------------
+QUESTION_BANK = {
+    "Interpersonal": [
+        {"id":"i01","text":"How often do you feel tense before interacting with a specific person?","variable":"Baseline","weight":1.2,"reverse":True},
+        {"id":"i02","text":"How often does one conversation ruin your whole day?","variable":"Baseline","weight":1.3,"reverse":True},
+        {"id":"i03","text":"How often do you avoid a conversation you know you need to have?","variable":"Execution","weight":1.2,"reverse":True},
+        {"id":"i04","text":"How clear are you about what you want from this relationship/situation?","variable":"Clarity","weight":1.3,"reverse":False},
+        {"id":"i05","text":"How often do you leave a talk unsure what was actually decided?","variable":"Clarity","weight":1.1,"reverse":True},
+        {"id":"i06","text":"How often do you say “yes” when you mean “no”?","variable":"Boundaries","weight":1.4,"reverse":True},
+        {"id":"i07","text":"How often do you tolerate behavior that you resent later?","variable":"Boundaries","weight":1.3,"reverse":True},
+        {"id":"i08","text":"How often do you communicate your limits early rather than late?","variable":"Boundaries","weight":1.2,"reverse":False},
+        {"id":"i09","text":"How supported do you feel by at least one person in your life?","variable":"Resources","weight":1.1,"reverse":False},
+        {"id":"i10","text":"How often do you feel alone carrying the emotional load?","variable":"Resources","weight":1.2,"reverse":True},
+        {"id":"i11","text":"How often do conflicts repeat without resolution?","variable":"Feedback","weight":1.2,"reverse":True},
+        {"id":"i12","text":"How often do you reflect after conflict and adjust your approach?","variable":"Feedback","weight":1.1,"reverse":False},
+        {"id":"i13","text":"How often do you interpret neutral behavior as hostile?","variable":"Feedback","weight":1.0,"reverse":True},
+        {"id":"i14","text":"How often do you apologize to restore peace even when you weren’t wrong?","variable":"Boundaries","weight":1.1,"reverse":True},
+        {"id":"i15","text":"How often do you directly ask for what you need?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"i16","text":"How often do you replay conversations in your head afterward?","variable":"Baseline","weight":1.0,"reverse":True},
+        {"id":"i17","text":"How often do you feel respected in the dynamic?","variable":"Resources","weight":1.2,"reverse":False},
+        {"id":"i18","text":"How often do you keep your word when you set a boundary?","variable":"Execution","weight":1.3,"reverse":False},
+        {"id":"i19","text":"How often do you use sarcasm/withdrawal instead of stating the issue?","variable":"Execution","weight":1.1,"reverse":True},
+        {"id":"i20","text":"How often do you feel you must perform to be valued?","variable":"Clarity","weight":1.0,"reverse":True},
+        {"id":"i21","text":"How often do you choose timing/location to improve the odds of a good talk?","variable":"Execution","weight":1.0,"reverse":False},
+        {"id":"i22","text":"How often do you communicate expectations before frustration builds?","variable":"Execution","weight":1.1,"reverse":False},
+        {"id":"i23","text":"How often do you recover quickly after conflict?","variable":"Baseline","weight":1.1,"reverse":False},
+        {"id":"i24","text":"How often do you ask clarifying questions instead of assuming intent?","variable":"Feedback","weight":1.0,"reverse":False},
+        {"id":"i25","text":"How often do you feel you’re walking on eggshells?","variable":"Baseline","weight":1.3,"reverse":True},
+    ],
+    "Financial": [
+        {"id":"f01","text":"How often do you know your exact cash position (today) without guessing?","variable":"Clarity","weight":1.3,"reverse":False},
+        {"id":"f02","text":"How often do bills/fees surprise you?","variable":"Clarity","weight":1.2,"reverse":True},
+        {"id":"f03","text":"How often do you feel like you’re one emergency away from collapse?","variable":"Baseline","weight":1.3,"reverse":True},
+        {"id":"f04","text":"How often do you have a buffer (even small) after essentials?","variable":"Resources","weight":1.3,"reverse":False},
+        {"id":"f05","text":"How often do you spend to regulate mood/stress?","variable":"Feedback","weight":1.1,"reverse":True},
+        {"id":"f06","text":"How consistently do you track spending (even roughly)?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"f07","text":"How often do you miss due dates?","variable":"Execution","weight":1.2,"reverse":True},
+        {"id":"f08","text":"How often do you avoid opening financial mail/notifications?","variable":"Boundaries","weight":1.1,"reverse":True},
+        {"id":"f09","text":"How often do you negotiate rates, call providers, or challenge charges?","variable":"Execution","weight":1.0,"reverse":False},
+        {"id":"f10","text":"How clear are you on your top 3 financial priorities this month?","variable":"Clarity","weight":1.2,"reverse":False},
+        {"id":"f11","text":"How often do impulse purchases break your plan?","variable":"Boundaries","weight":1.2,"reverse":True},
+        {"id":"f12","text":"How often do you review recurring subscriptions/auto-pay items?","variable":"Feedback","weight":1.0,"reverse":False},
+        {"id":"f13","text":"How often do you make a simple plan before spending (need vs want)?","variable":"Boundaries","weight":1.1,"reverse":False},
+        {"id":"f14","text":"How often does financial stress disrupt sleep/focus?","variable":"Baseline","weight":1.2,"reverse":True},
+        {"id":"f15","text":"How often do you feel your income is stable/predictable?","variable":"Resources","weight":1.2,"reverse":False},
+        {"id":"f16","text":"How often do you know your minimum survival number per month?","variable":"Clarity","weight":1.1,"reverse":False},
+        {"id":"f17","text":"How often do you take one concrete financial action per week?","variable":"Execution","weight":1.1,"reverse":False},
+        {"id":"f18","text":"How often do you use a system (notes/app/spreadsheet) to reduce chaos?","variable":"Execution","weight":1.1,"reverse":False},
+        {"id":"f19","text":"How often do you borrow/advance money to get through the month?","variable":"Resources","weight":1.1,"reverse":True},
+        {"id":"f20","text":"How often do you postpone decisions until they become emergencies?","variable":"Execution","weight":1.2,"reverse":True},
+        {"id":"f21","text":"How often do you set boundaries with others about money (loans, favors, guilt)?","variable":"Boundaries","weight":1.0,"reverse":False},
+        {"id":"f22","text":"How often do you feel ashamed about money (and hide it)?","variable":"Feedback","weight":1.0,"reverse":True},
+        {"id":"f23","text":"How often do you have a realistic plan for the next 30 days?","variable":"Clarity","weight":1.2,"reverse":False},
+        {"id":"f24","text":"How often do you follow that plan when stress hits?","variable":"Boundaries","weight":1.1,"reverse":False},
+        {"id":"f25","text":"How often do you recover quickly after a financial hit?","variable":"Baseline","weight":1.1,"reverse":False},
+    ],
+    "Big Picture": [
+        {"id":"b01","text":"How clear is your north star (what you’re building / aiming at)?","variable":"Clarity","weight":1.3,"reverse":False},
+        {"id":"b02","text":"How often do you feel scattered across too many threads?","variable":"Baseline","weight":1.2,"reverse":True},
+        {"id":"b03","text":"How often do you know the next smallest step without overthinking?","variable":"Clarity","weight":1.1,"reverse":False},
+        {"id":"b04","text":"How often do you have enough energy/bandwidth to execute?","variable":"Resources","weight":1.2,"reverse":False},
+        {"id":"b05","text":"How often do you burn time on tasks that don’t move the mission?","variable":"Boundaries","weight":1.2,"reverse":True},
+        {"id":"b06","text":"How often do you ship something (even small) rather than refine forever?","variable":"Execution","weight":1.3,"reverse":False},
+        {"id":"b07","text":"How often do you change direction mid-week?","variable":"Baseline","weight":1.1,"reverse":True},
+        {"id":"b08","text":"How often do you measure progress with a real metric (not vibes)?","variable":"Feedback","weight":1.2,"reverse":False},
+        {"id":"b09","text":"How often do you review what worked and adjust your plan?","variable":"Feedback","weight":1.1,"reverse":False},
+        {"id":"b10","text":"How often do you ignore obvious signals because they’re inconvenient?","variable":"Feedback","weight":1.0,"reverse":True},
+        {"id":"b11","text":"How often do you protect focus time from interruptions?","variable":"Boundaries","weight":1.2,"reverse":False},
+        {"id":"b12","text":"How often do you feel you’re operating without a buffer?","variable":"Resources","weight":1.1,"reverse":True},
+        {"id":"b13","text":"How often do you have a simple weekly plan you can actually follow?","variable":"Execution","weight":1.1,"reverse":False},
+        {"id":"b14","text":"How often do you let urgency from others rewrite your priorities?","variable":"Boundaries","weight":1.1,"reverse":True},
+        {"id":"b15","text":"How often do you know what to say “no” to right now?","variable":"Clarity","weight":1.0,"reverse":False},
+        {"id":"b16","text":"How often do you feel meaningful momentum?","variable":"Baseline","weight":1.0,"reverse":False},
+        {"id":"b17","text":"How often do you procrastinate on the one scary keystone task?","variable":"Execution","weight":1.2,"reverse":True},
+        {"id":"b18","text":"How often do you have access to help/support/tools when stuck?","variable":"Resources","weight":1.0,"reverse":False},
+        {"id":"b19","text":"How often do you document decisions so you don’t relitigate them?","variable":"Feedback","weight":1.0,"reverse":False},
+        {"id":"b20","text":"How often do you feel your environment is aligned with your goals?","variable":"Resources","weight":1.1,"reverse":False},
+        {"id":"b21","text":"How often do you stop to simplify when complexity rises?","variable":"Feedback","weight":1.0,"reverse":False},
+        {"id":"b22","text":"How often do you complete what you start?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"b23","text":"How often do you experience “mission drift” after setbacks?","variable":"Baseline","weight":1.1,"reverse":True},
+        {"id":"b24","text":"How often do you pick one lever and push it hard for 7 days?","variable":"Execution","weight":1.1,"reverse":False},
+        {"id":"b25","text":"How often do you feel the goal is real and reachable?","variable":"Clarity","weight":1.1,"reverse":False},
+    ],
+}
+
+# --------------------------
+# Scoring + Follow-up selection
+# --------------------------
+def compute_scores(questions, answers):
+    """
+    answers: dict[qid] -> int (0..4), where higher is "more true"
+    scoring flips reverse questions so higher is always better internally.
+    returns: overall(0..100), per_variable dict, scored_qs_sorted
+    """
+    per_var_num = {}
+    per_var_den = {}
+    per_var_raw = {}
+    scored_qs = []  # (variable, scored_0_4, weight, qdict, original_answer)
+
+    for q in questions:
+        qid = q["id"]
+        if qid not in answers:
+            continue
+        a = int(answers[qid])
+        s = (4 - a) if q.get("reverse", False) else a  # 0..4 higher is better
+        v = q["variable"]
+        w = float(q.get("weight", 1.0))
+
+        per_var_num[v] = per_var_num.get(v, 0.0) + s * w
+        per_var_den[v] = per_var_den.get(v, 0.0) + w
+        per_var_raw.setdefault(v, []).append(s)
+
+        scored_qs.append((v, s, w, q, a))
+
+    per_variable = {}
+    for v in per_var_num:
+        den = per_var_den.get(v, 1.0) or 1.0
+        mean_0_4 = per_var_num[v] / den
+        pct = (mean_0_4 / 4.0) * 100.0
+
+        raw_list = per_var_raw.get(v, [])
+        vol = 0.0
+        if len(raw_list) >= 2:
+            vol = (pstdev(raw_list) / 2.0) * 100.0
+        vol = clamp(vol, 0, 100)
+
+        per_variable[v] = {
+            "pct": pct,
+            "zone": zone_name(pct),
+            "volatility": vol,
+        }
+
+    overall_num = 0.0
+    overall_den = 0.0
+    for v, info in per_variable.items():
+        vw = float(VARIABLE_WEIGHTS.get(v, 1.0))
+        overall_num += info["pct"] * vw
+        overall_den += vw
+    overall = (overall_num / overall_den) if overall_den else 0.0
+
+    scored_qs_sorted = sorted(scored_qs, key=lambda t: (t[1], -t[2]))  # low score first, high weight first
+    return overall, per_variable, scored_qs_sorted
+
+def choose_followup_targets(per_variable):
+    if not per_variable:
+        return []
+    vars_sorted = sorted([(v, per_variable[v]["pct"]) for v in per_variable], key=lambda x: x[1])
+    lowest = vars_sorted[0][0]
+    reds = [v for v in per_variable if per_variable[v]["zone"] == "RED" and v != lowest]
+    yellows = [v for v in per_variable if per_variable[v]["zone"] == "YELLOW" and v != lowest]
+
+    targets = [lowest] + reds
+    if len(targets) < 2:
+        for v in yellows:
+            if v not in targets:
+                targets.append(v)
+            if len(targets) >= 2:
+                break
+    return targets[:3]
+
+def pick_followup_questions(lens, targets, already_asked_ids, n=10):
+    """
+    v1: bank is only 25 per lens, so repeats may occur until you expand the bank.
+    Selection tries: unasked-in-targets -> any unasked -> allow repeats-in-targets -> any repeats.
+    """
+    bank = QUESTION_BANK[lens][:]
+
+    c1 = [q for q in bank if (q["id"] not in already_asked_ids) and (q["variable"] in targets)]
+    random.shuffle(c1)
+    picked = c1[:n]
+
+    if len(picked) < n:
+        c2 = [q for q in bank if (q["id"] not in already_asked_ids) and (q not in picked)]
+        random.shuffle(c2)
+        picked.extend(c2[: (n - len(picked))])
+
+    if len(picked) < n:
+        c3 = [q for q in bank if (q["variable"] in targets) and (q not in picked)]
+        random.shuffle(c3)
+        picked.extend(c3[: (n - len(picked))])
+
+    if len(picked) < n:
+        c4 = [q for q in bank if q not in picked]
+        random.shuffle(c4)
+        picked.extend(c4[: (n - len(picked))])
+
+    return picked[:n]
+
+# --------------------------
+# Session State Initialization (MUST be above any stage checks)
+# --------------------------
+if "stage" not in st.session_state:
+    st.session_state.stage = "setup"
+
+if "lens" not in st.session_state:
+    st.session_state.lens = "Interpersonal"
+
+if "active_questions" not in st.session_state:
+    st.session_state.active_questions = []
+
+if "answers" not in st.session_state:
+    st.session_state.answers = {}
+
+if "idx" not in st.session_state:
+    st.session_state.idx = 0
+
+if "followup_questions" not in st.session_state:
+    st.session_state.followup_questions = []
+
+if "followup_answers" not in st.session_state:
+    st.session_state.followup_answers = {}  # key: (qid, idx) -> int
+
+if "followup_idx" not in st.session_state:
+    st.session_state.followup_idx = 0
+
+if "followup_targets" not in st.session_state:
+    st.session_state.followup_targets = []
+
+def reset_run():
+    st.session_state.stage = "setup"
+    st.session_state.active_questions = []
+    st.session_state.answers = {}
+    st.session_state.idx = 0
+    st.session_state.followup_questions = []
+    st.session_state.followup_answers = {}
+    st.session_state.followup_idx = 0
+    st.session_state.followup_targets = []
+
+# --------------------------
+# Sidebar (Reset only, no lens selection)
+# --------------------------
+with st.sidebar:
+    st.header("Controls")
+    st.write("Initial questions: **25**")
+    st.write("Follow-ups: **10**")
+    if st.button("Reset"):
+        reset_run()
+        st.rerun()
+
+# --------------------------
+# Setup Screen (Lens Picker)
+# --------------------------
+if st.session_state.stage == "setup":
+    st.subheader("Pick a lens to begin")
+
+    st.session_state.lens = st.radio(
+        "Is this interpersonal, financial, or big picture?",
+        LENSES,
+        index=LENSES.index(st.session_state.lens),
+        key="lens_picker",
+    )
+
+    st.caption("This only changes which questions are asked and how the readout is worded. Scoring stays identical.")
+
+    if st.button("Start 25 questions", type="primary"):
+        lens = st.session_state.lens
+        bank = QUESTION_BANK[lens][:]
+        random.shuffle(bank)
+
+        # If you expand the bank later, this will still work
+        k = min(25, len(bank))
+        st.session_state.active_questions = random.sample(bank, k=k)
+        st.session_state.answers = {}
+        st.session_state.idx = 0
+
+        st.session_state.followup_questions = []
+        st.session_state.followup_answers = {}
+        st.session_state.followup_idx = 0
+        st.session_state.followup_targets = []
+
+        st.session_state.stage = "questions"
+        st.rerun()
+
+# --------------------------
+# Main Questions (25)
+# --------------------------
+if st.session_state.stage == "questions":
+    lens = st.session_state.lens
+    qs = st.session_state.active_questions
+    total = len(qs)
+    idx = st.session_state.idx
+
+    st.subheader(f"{lens} lens — Question {idx+1} of {total}")
+    st.progress((idx) / total)
+
+    q = qs[idx]
+    st.write(f"**{q['text']}**")
+    st.caption(f"Measures: {lens_translation(lens, q['variable'])}")
+
+    current = st.session_state.answers.get(q["id"], None)
+    options = list(SCALE_LABELS.keys())
+
+    choice = st.radio(
+        "Choose one:",
+        options,
+        index=options.index(current) if current in options else 2,
+        format_func=lambda x: SCALE_LABELS[x],
+        key=f"radio_{q['id']}",
+    )
+    st.session_state.answers[q["id"]] = int(choice)
+
+    col1, col2, col3 = st.columns([1, 1, 2])
+    with col1:
+        if st.button("Back", disabled=(idx == 0)):
+            st.session_state.idx = max(0, idx - 1)
+            st.rerun()
+    with col2:
+        if st.button("Next", disabled=(idx >= total - 1)):
+            st.session_state.idx = min(total - 1, idx + 1)
+            st.rerun()
+    with col3:
+        if st.button("Finish & Score", type="primary"):
+            st.session_state.stage = "results"
+            st.rerun()
+
+# --------------------------
+# Readout renderer (human tone)
+# --------------------------
+def render_readout(title, lens, questions_all, answers_all):
+    overall, per_variable, scored_qs_sorted = compute_scores(questions_all, answers_all)
+
+    st.subheader(title)
+    st.write(lens_readout_intro(lens))
+    st.metric("Overall Score (0–100)", f"{overall:.1f}")
+
+    # Variable scores
+    st.write("### Category scores")
+    for v in VARIABLE_WEIGHTS.keys():
+        if v not in per_variable:
+            continue
+        info = per_variable[v]
+        label = lens_translation(lens, v)
+        st.write(
+            f"- **{label}**: **{info['pct']:.1f}** — {compassionate_zone_line(info['zone'])} "
+            f"(volatility {info['volatility']:.0f}/100)"
+        )
+
+    # Strengths + pressure points
+    vars_present = [(v, per_variable[v]["pct"]) for v in per_variable]
+    vars_present_sorted = sorted(vars_present, key=lambda x: x[1]) if vars_present else []
+
+    targets = choose_followup_targets(per_variable)
+
+    if vars_present_sorted:
+        lowest = vars_present_sorted[0][0]
+        highest = vars_present_sorted[-1][0]
+        low_label = lens_translation(lens, lowest)
+        high_label = lens_translation(lens, highest)
+
+        st.write("### Where you are")
+        st.write(f"- **What’s holding steady:** {high_label} (**{per_variable[highest]['pct']:.1f}**)")
+        st.write(f"- **Where pressure is building:** {low_label} (**{per_variable[lowest]['pct']:.1f}**) — {compassionate_zone_line(per_variable[lowest]['zone'])}")
+        st.write(compassionate_summary(lens, low_label))
+
+        st.write("### What’s dragging you down (lowest signals)")
+        for v, s, w, q, a in scored_qs_sorted[:5]:
+            st.write(f"- {q['text']}  \n  ↳ signal **{s}/4** (weight {w})")
+
+        st.write("### Best next move (smallest lever)")
+        low_var_items = [t for t in scored_qs_sorted if t[0] == lowest]
+        if low_var_items:
+            lever = sorted(low_var_items, key=lambda t: (t[1], -t[2]))[0]
+            v, s, w, q, a = lever
+            st.write(f"**Start here:** {q['text']}")
+            st.caption("You’re not fixing everything at once. You’re stabilizing the weakest point first.")
+
+        st.write("### Continue evaluation focus")
+        st.write("- We’ll ask 10 follow-ups mainly in these areas:")
+        for v in targets:
+            st.write(f"  - {lens_translation(lens, v)}")
+
+    return overall, per_variable, scored_qs_sorted, targets
+
+# --------------------------
+# Results (after 25)
+# --------------------------
+if st.session_state.stage == "results":
+    lens = st.session_state.lens
+    qs = st.session_state.active_questions
+    answers = st.session_state.answers
+
+    overall, per_variable, scored_sorted, targets = render_readout(
+        title="Readout (after 25 questions)",
+        lens=lens,
+        questions_all=qs,
+        answers_all=answers,
+    )
+
+    st.divider()
+
+    already = set([q["id"] for q in qs])
+    followups = pick_followup_questions(lens, targets, already_asked_ids=already, n=10)
+    if any(q["id"] in already for q in followups):
+        st.info("Follow-ups may repeat right now because each lens only has 25 questions. Add more questions to remove repeats.")
+
+    colA, colB, colC = st.columns([2, 1, 1])
+    with colA:
+        if st.button("Continue evaluation (10 follow-ups)", type="primary"):
+            st.session_state.followup_targets = targets
+            st.session_state.followup_questions = followups
+            st.session_state.followup_answers = {}
+            st.session_state.followup_idx = 0
+            st.session_state.stage = "followups"
+            st.rerun()
+    with colB:
+        if st.button("New run (same lens)"):
+            bank = QUESTION_BANK[lens][:]
+            random.shuffle(bank)
+            k = min(25, len(bank))
+            st.session_state.active_questions = random.sample(bank, k=k)
+            st.session_state.answers = {}
+            st.session_state.idx = 0
+            st.session_state.stage = "questions"
+            st.rerun()
+    with colC:
+        if st.button("Change lens"):
+            reset_run()
+            st.rerun()
+
+    st.write("### Export (copy/paste)")
+    st.code(
+        {
+            "lens": lens,
+            "phase": "after_25",
+            "overall": round(overall, 2),
+            "variables": {v: round(per_variable[v]["pct"], 2) for v in per_variable},
+            "answers": answers,
+            "targets": targets,
+        },
+        language="python",
+    )
+
+import random
+from statistics import pstdev
+import streamlit as st
+
+# =========================================================
+# 3-Lens Diagnostic (25 + 10 Follow-ups) — Single File
+# Lens selection happens FIRST (setup screen)
+# Session state is initialized BEFORE any stage checks
+# =========================================================
+
+st.set_page_config(page_title="3-Lens Diagnostic (25Q + 10)", layout="centered")
+
+st.title("3-Lens Diagnostic (25 questions)")
+st.caption("Pick a lens first. Same scoring. Different lens. Randomized questions + targeted follow-ups.")
+
+# --------------------------
+# Constants / Scale
+# --------------------------
+LENSES = ["Interpersonal", "Financial", "Big Picture"]
+
+SCALE_LABELS = {
+    0: "0 — Not at all / Never",
+    1: "1 — Rarely",
+    2: "2 — Sometimes",
+    3: "3 — Often",
+    4: "4 — Almost always",
+}
+
+VARIABLE_WEIGHTS = {
+    "Baseline": 1.2,
+    "Clarity": 1.1,
+    "Resources": 1.1,
+    "Boundaries": 1.1,
+    "Execution": 1.2,
+    "Feedback": 1.0,
+}
+
+def clamp(n, lo, hi):
+    return max(lo, min(hi, n))
+
+def zone_name(score_0_100: float) -> str:
+    if score_0_100 < 45:
+        return "RED"
+    if score_0_100 < 70:
+        return "YELLOW"
+    return "GREEN"
+
+def compassionate_zone_line(zone):
+    return {
+        "RED": "needs support now (signal, not failure)",
+        "YELLOW": "workable, but inconsistent under stress",
+        "GREEN": "stable and helping you",
+    }.get(zone, zone)
+
+def lens_readout_intro(lens: str) -> str:
+    if lens == "Interpersonal":
+        return "Interpreting through **relationship dynamics**: tension, clarity, boundaries, follow-through."
+    if lens == "Financial":
+        return "Interpreting through **money stability + control**: clarity, buffer, boundaries, execution."
+    return "Interpreting through **mission control**: clarity, focus, resources, execution, feedback loops."
+
+def lens_translation(lens: str, variable: str) -> str:
+    mapping = {
+        "Interpersonal": {
+            "Baseline": "Emotional baseline under contact",
+            "Clarity": "What you want / what’s true",
+            "Resources": "Support + emotional bandwidth",
+            "Boundaries": "Limits + self-respect in action",
+            "Execution": "Having the talk / doing the thing",
+            "Feedback": "Repair, learning, reality-checking",
+        },
+        "Financial": {
+            "Baseline": "Stability under money stress",
+            "Clarity": "Numbers + priorities clarity",
+            "Resources": "Income/buffer/tooling",
+            "Boundaries": "Spending boundaries + exposure control",
+            "Execution": "Bills/actions actually done",
+            "Feedback": "Review, adjust, remove leaks",
+        },
+        "Big Picture": {
+            "Baseline": "Stability + momentum",
+            "Clarity": "North star + next step",
+            "Resources": "Energy/support/environment",
+            "Boundaries": "Focus protection + saying no",
+            "Execution": "Shipping + completion",
+            "Feedback": "Measurement + iteration",
+        },
+    }
+    return mapping.get(lens, {}).get(variable, variable)
+
+def compassionate_summary(lens, lowest_label):
+    if lens == "Interpersonal":
+        return f"It looks like **{lowest_label}** is where the relationship pressure is concentrating. That usually means you’re carrying too much, or things aren’t resolving cleanly."
+    if lens == "Financial":
+        return f"It looks like **{lowest_label}** is where the money pressure is concentrating. That’s usually a buffer/system issue—not a character flaw."
+    return f"It looks like **{lowest_label}** is where the mission pressure is concentrating. That usually means the goal is real, but the structure/bandwidth isn’t matching it yet."
+
+# --------------------------
+# Question Bank (25 per lens) — starter v1
+# Each question: id, text, variable, weight, reverse
+# reverse=True means higher answer is worse, so we flip: score = 4 - answer
+# --------------------------
+QUESTION_BANK = {
+    "Interpersonal": [
+        {"id":"i01","text":"How often do you feel tense before interacting with a specific person?","variable":"Baseline","weight":1.2,"reverse":True},
+        {"id":"i02","text":"How often does one conversation ruin your whole day?","variable":"Baseline","weight":1.3,"reverse":True},
+        {"id":"i03","text":"How often do you avoid a conversation you know you need to have?","variable":"Execution","weight":1.2,"reverse":True},
+        {"id":"i04","text":"How clear are you about what you want from this relationship/situation?","variable":"Clarity","weight":1.3,"reverse":False},
+        {"id":"i05","text":"How often do you leave a talk unsure what was actually decided?","variable":"Clarity","weight":1.1,"reverse":True},
+        {"id":"i06","text":"How often do you say “yes” when you mean “no”?","variable":"Boundaries","weight":1.4,"reverse":True},
+        {"id":"i07","text":"How often do you tolerate behavior that you resent later?","variable":"Boundaries","weight":1.3,"reverse":True},
+        {"id":"i08","text":"How often do you communicate your limits early rather than late?","variable":"Boundaries","weight":1.2,"reverse":False},
+        {"id":"i09","text":"How supported do you feel by at least one person in your life?","variable":"Resources","weight":1.1,"reverse":False},
+        {"id":"i10","text":"How often do you feel alone carrying the emotional load?","variable":"Resources","weight":1.2,"reverse":True},
+        {"id":"i11","text":"How often do conflicts repeat without resolution?","variable":"Feedback","weight":1.2,"reverse":True},
+        {"id":"i12","text":"How often do you reflect after conflict and adjust your approach?","variable":"Feedback","weight":1.1,"reverse":False},
+        {"id":"i13","text":"How often do you interpret neutral behavior as hostile?","variable":"Feedback","weight":1.0,"reverse":True},
+        {"id":"i14","text":"How often do you apologize to restore peace even when you weren’t wrong?","variable":"Boundaries","weight":1.1,"reverse":True},
+        {"id":"i15","text":"How often do you directly ask for what you need?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"i16","text":"How often do you replay conversations in your head afterward?","variable":"Baseline","weight":1.0,"reverse":True},
+        {"id":"i17","text":"How often do you feel respected in the dynamic?","variable":"Resources","weight":1.2,"reverse":False},
+        {"id":"i18","text":"How often do you keep your word when you set a boundary?","variable":"Execution","weight":1.3,"reverse":False},
+        {"id":"i19","text":"How often do you use sarcasm/withdrawal instead of stating the issue?","variable":"Execution","weight":1.1,"reverse":True},
+        {"id":"i20","text":"How often do you feel you must perform to be valued?","variable":"Clarity","weight":1.0,"reverse":True},
+        {"id":"i21","text":"How often do you choose timing/location to improve the odds of a good talk?","variable":"Execution","weight":1.0,"reverse":False},
+        {"id":"i22","text":"How often do you communicate expectations before frustration builds?","variable":"Execution","weight":1.1,"reverse":False},
+        {"id":"i23","text":"How often do you recover quickly after conflict?","variable":"Baseline","weight":1.1,"reverse":False},
+        {"id":"i24","text":"How often do you ask clarifying questions instead of assuming intent?","variable":"Feedback","weight":1.0,"reverse":False},
+        {"id":"i25","text":"How often do you feel you’re walking on eggshells?","variable":"Baseline","weight":1.3,"reverse":True},
+    ],
+    "Financial": [
+        {"id":"f01","text":"How often do you know your exact cash position (today) without guessing?","variable":"Clarity","weight":1.3,"reverse":False},
+        {"id":"f02","text":"How often do bills/fees surprise you?","variable":"Clarity","weight":1.2,"reverse":True},
+        {"id":"f03","text":"How often do you feel like you’re one emergency away from collapse?","variable":"Baseline","weight":1.3,"reverse":True},
+        {"id":"f04","text":"How often do you have a buffer (even small) after essentials?","variable":"Resources","weight":1.3,"reverse":False},
+        {"id":"f05","text":"How often do you spend to regulate mood/stress?","variable":"Feedback","weight":1.1,"reverse":True},
+        {"id":"f06","text":"How consistently do you track spending (even roughly)?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"f07","text":"How often do you miss due dates?","variable":"Execution","weight":1.2,"reverse":True},
+        {"id":"f08","text":"How often do you avoid opening financial mail/notifications?","variable":"Boundaries","weight":1.1,"reverse":True},
+        {"id":"f09","text":"How often do you negotiate rates, call providers, or challenge charges?","variable":"Execution","weight":1.0,"reverse":False},
+        {"id":"f10","text":"How clear are you on your top 3 financial priorities this month?","variable":"Clarity","weight":1.2,"reverse":False},
+        {"id":"f11","text":"How often do impulse purchases break your plan?","variable":"Boundaries","weight":1.2,"reverse":True},
+        {"id":"f12","text":"How often do you review recurring subscriptions/auto-pay items?","variable":"Feedback","weight":1.0,"reverse":False},
+        {"id":"f13","text":"How often do you make a simple plan before spending (need vs want)?","variable":"Boundaries","weight":1.1,"reverse":False},
+        {"id":"f14","text":"How often does financial stress disrupt sleep/focus?","variable":"Baseline","weight":1.2,"reverse":True},
+        {"id":"f15","text":"How often do you feel your income is stable/predictable?","variable":"Resources","weight":1.2,"reverse":False},
+        {"id":"f16","text":"How often do you know your minimum survival number per month?","variable":"Clarity","weight":1.1,"reverse":False},
+        {"id":"f17","text":"How often do you take one concrete financial action per week?","variable":"Execution","weight":1.1,"reverse":False},
+        {"id":"f18","text":"How often do you use a system (notes/app/spreadsheet) to reduce chaos?","variable":"Execution","weight":1.1,"reverse":False},
+        {"id":"f19","text":"How often do you borrow/advance money to get through the month?","variable":"Resources","weight":1.1,"reverse":True},
+        {"id":"f20","text":"How often do you postpone decisions until they become emergencies?","variable":"Execution","weight":1.2,"reverse":True},
+        {"id":"f21","text":"How often do you set boundaries with others about money (loans, favors, guilt)?","variable":"Boundaries","weight":1.0,"reverse":False},
+        {"id":"f22","text":"How often do you feel ashamed about money (and hide it)?","variable":"Feedback","weight":1.0,"reverse":True},
+        {"id":"f23","text":"How often do you have a realistic plan for the next 30 days?","variable":"Clarity","weight":1.2,"reverse":False},
+        {"id":"f24","text":"How often do you follow that plan when stress hits?","variable":"Boundaries","weight":1.1,"reverse":False},
+        {"id":"f25","text":"How often do you recover quickly after a financial hit?","variable":"Baseline","weight":1.1,"reverse":False},
+    ],
+    "Big Picture": [
+        {"id":"b01","text":"How clear is your north star (what you’re building / aiming at)?","variable":"Clarity","weight":1.3,"reverse":False},
+        {"id":"b02","text":"How often do you feel scattered across too many threads?","variable":"Baseline","weight":1.2,"reverse":True},
+        {"id":"b03","text":"How often do you know the next smallest step without overthinking?","variable":"Clarity","weight":1.1,"reverse":False},
+        {"id":"b04","text":"How often do you have enough energy/bandwidth to execute?","variable":"Resources","weight":1.2,"reverse":False},
+        {"id":"b05","text":"How often do you burn time on tasks that don’t move the mission?","variable":"Boundaries","weight":1.2,"reverse":True},
+        {"id":"b06","text":"How often do you ship something (even small) rather than refine forever?","variable":"Execution","weight":1.3,"reverse":False},
+        {"id":"b07","text":"How often do you change direction mid-week?","variable":"Baseline","weight":1.1,"reverse":True},
+        {"id":"b08","text":"How often do you measure progress with a real metric (not vibes)?","variable":"Feedback","weight":1.2,"reverse":False},
+        {"id":"b09","text":"How often do you review what worked and adjust your plan?","variable":"Feedback","weight":1.1,"reverse":False},
+        {"id":"b10","text":"How often do you ignore obvious signals because they’re inconvenient?","variable":"Feedback","weight":1.0,"reverse":True},
+        {"id":"b11","text":"How often do you protect focus time from interruptions?","variable":"Boundaries","weight":1.2,"reverse":False},
+        {"id":"b12","text":"How often do you feel you’re operating without a buffer?","variable":"Resources","weight":1.1,"reverse":True},
+        {"id":"b13","text":"How often do you have a simple weekly plan you can actually follow?","variable":"Execution","weight":1.1,"reverse":False},
+        {"id":"b14","text":"How often do you let urgency from others rewrite your priorities?","variable":"Boundaries","weight":1.1,"reverse":True},
+        {"id":"b15","text":"How often do you know what to say “no” to right now?","variable":"Clarity","weight":1.0,"reverse":False},
+        {"id":"b16","text":"How often do you feel meaningful momentum?","variable":"Baseline","weight":1.0,"reverse":False},
+        {"id":"b17","text":"How often do you procrastinate on the one scary keystone task?","variable":"Execution","weight":1.2,"reverse":True},
+        {"id":"b18","text":"How often do you have access to help/support/tools when stuck?","variable":"Resources","weight":1.0,"reverse":False},
+        {"id":"b19","text":"How often do you document decisions so you don’t relitigate them?","variable":"Feedback","weight":1.0,"reverse":False},
+        {"id":"b20","text":"How often do you feel your environment is aligned with your goals?","variable":"Resources","weight":1.1,"reverse":False},
+        {"id":"b21","text":"How often do you stop to simplify when complexity rises?","variable":"Feedback","weight":1.0,"reverse":False},
+        {"id":"b22","text":"How often do you complete what you start?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"b23","text":"How often do you experience “mission drift” after setbacks?","variable":"Baseline","weight":1.1,"reverse":True},
+        {"id":"b24","text":"How often do you pick one lever and push it hard for 7 days?","variable":"Execution","weight":1.1,"reverse":False},
+        {"id":"b25","text":"How often do you feel the goal is real and reachable?","variable":"Clarity","weight":1.1,"reverse":False},
+    ],
+}
+
+# --------------------------
+# Scoring + Follow-up selection
+# --------------------------
+def compute_scores(questions, answers):
+    """
+    answers: dict[qid] -> int (0..4), where higher is "more true"
+    scoring flips reverse questions so higher is always better internally.
+    returns: overall(0..100), per_variable dict, scored_qs_sorted
+    """
+    per_var_num = {}
+    per_var_den = {}
+    per_var_raw = {}
+    scored_qs = []  # (variable, scored_0_4, weight, qdict, original_answer)
+
+    for q in questions:
+        qid = q["id"]
+        if qid not in answers:
+            continue
+        a = int(answers[qid])
+        s = (4 - a) if q.get("reverse", False) else a  # 0..4 higher is better
+        v = q["variable"]
+        w = float(q.get("weight", 1.0))
+
+        per_var_num[v] = per_var_num.get(v, 0.0) + s * w
+        per_var_den[v] = per_var_den.get(v, 0.0) + w
+        per_var_raw.setdefault(v, []).append(s)
+
+        scored_qs.append((v, s, w, q, a))
+
+    per_variable = {}
+    for v in per_var_num:
+        den = per_var_den.get(v, 1.0) or 1.0
+        mean_0_4 = per_var_num[v] / den
+        pct = (mean_0_4 / 4.0) * 100.0
+
+        raw_list = per_var_raw.get(v, [])
+        vol = 0.0
+        if len(raw_list) >= 2:
+            vol = (pstdev(raw_list) / 2.0) * 100.0
+        vol = clamp(vol, 0, 100)
+
+        per_variable[v] = {
+            "pct": pct,
+            "zone": zone_name(pct),
+            "volatility": vol,
+        }
+
+    overall_num = 0.0
+    overall_den = 0.0
+    for v, info in per_variable.items():
+        vw = float(VARIABLE_WEIGHTS.get(v, 1.0))
+        overall_num += info["pct"] * vw
+        overall_den += vw
+    overall = (overall_num / overall_den) if overall_den else 0.0
+
+    scored_qs_sorted = sorted(scored_qs, key=lambda t: (t[1], -t[2]))  # low score first, high weight first
+    return overall, per_variable, scored_qs_sorted
+
+def choose_followup_targets(per_variable):
+    if not per_variable:
+        return []
+    vars_sorted = sorted([(v, per_variable[v]["pct"]) for v in per_variable], key=lambda x: x[1])
+    lowest = vars_sorted[0][0]
+    reds = [v for v in per_variable if per_variable[v]["zone"] == "RED" and v != lowest]
+    yellows = [v for v in per_variable if per_variable[v]["zone"] == "YELLOW" and v != lowest]
+
+    targets = [lowest] + reds
+    if len(targets) < 2:
+        for v in yellows:
+            if v not in targets:
+                targets.append(v)
+            if len(targets) >= 2:
+                break
+    return targets[:3]
+
+def pick_followup_questions(lens, targets, already_asked_ids, n=10):
+    """
+    v1: bank is only 25 per lens, so repeats may occur until you expand the bank.
+    Selection tries: unasked-in-targets -> any unasked -> allow repeats-in-targets -> any repeats.
+    """
+    bank = QUESTION_BANK[lens][:]
+
+    c1 = [q for q in bank if (q["id"] not in already_asked_ids) and (q["variable"] in targets)]
+    random.shuffle(c1)
+    picked = c1[:n]
+
+    if len(picked) < n:
+        c2 = [q for q in bank if (q["id"] not in already_asked_ids) and (q not in picked)]
+        random.shuffle(c2)
+        picked.extend(c2[: (n - len(picked))])
+
+    if len(picked) < n:
+        c3 = [q for q in bank if (q["variable"] in targets) and (q not in picked)]
+        random.shuffle(c3)
+        picked.extend(c3[: (n - len(picked))])
+
+    if len(picked) < n:
+        c4 = [q for q in bank if q not in picked]
+        random.shuffle(c4)
+        picked.extend(c4[: (n - len(picked))])
+
+    return picked[:n]
+
+# --------------------------
+# Session State Initialization (MUST be above any stage checks)
+# --------------------------
+if "stage" not in st.session_state:
+    st.session_state.stage = "setup"
+
+if "lens" not in st.session_state:
+    st.session_state.lens = "Interpersonal"
+
+if "active_questions" not in st.session_state:
+    st.session_state.active_questions = []
+
+if "answers" not in st.session_state:
+    st.session_state.answers = {}
+
+if "idx" not in st.session_state:
+    st.session_state.idx = 0
+
+if "followup_questions" not in st.session_state:
+    st.session_state.followup_questions = []
+
+if "followup_answers" not in st.session_state:
+    st.session_state.followup_answers = {}  # key: (qid, idx) -> int
+
+if "followup_idx" not in st.session_state:
+    st.session_state.followup_idx = 0
+
+if "followup_targets" not in st.session_state:
+    st.session_state.followup_targets = []
+
+def reset_run():
+    st.session_state.stage = "setup"
+    st.session_state.active_questions = []
+    st.session_state.answers = {}
+    st.session_state.idx = 0
+    st.session_state.followup_questions = []
+    st.session_state.followup_answers = {}
+    st.session_state.followup_idx = 0
+    st.session_state.followup_targets = []
+
+# --------------------------
+# Sidebar (Reset only, no lens selection)
+# --------------------------
+with st.sidebar:
+    st.header("Controls")
+    st.write("Initial questions: **25**")
+    st.write("Follow-ups: **10**")
+    if st.button("Reset"):
+        reset_run()
+        st.rerun()
+
+# --------------------------
+# Setup Screen (Lens Picker)
+# --------------------------
+if st.session_state.stage == "setup":
+    st.subheader("Pick a lens to begin")
+
+    st.session_state.lens = st.radio(
+        "Is this interpersonal, financial, or big picture?",
+        LENSES,
+        index=LENSES.index(st.session_state.lens),
+        key="lens_picker",
+    )
+
+    st.caption("This only changes which questions are asked and how the readout is worded. Scoring stays identical.")
+
+    if st.button("Start 25 questions", type="primary"):
+        lens = st.session_state.lens
+        bank = QUESTION_BANK[lens][:]
+        random.shuffle(bank)
+
+        # If you expand the bank later, this will still work
+        k = min(25, len(bank))
+        st.session_state.active_questions = random.sample(bank, k=k)
+        st.session_state.answers = {}
+        st.session_state.idx = 0
+
+        st.session_state.followup_questions = []
+        st.session_state.followup_answers = {}
+        st.session_state.followup_idx = 0
+        st.session_state.followup_targets = []
+
+        st.session_state.stage = "questions"
+        st.rerun()
+
+# --------------------------
+# Main Questions (25)
+# --------------------------
+if st.session_state.stage == "questions":
+    lens = st.session_state.lens
+    qs = st.session_state.active_questions
+    total = len(qs)
+    idx = st.session_state.idx
+
+    st.subheader(f"{lens} lens — Question {idx+1} of {total}")
+    st.progress((idx) / total)
+
+    q = qs[idx]
+    st.write(f"**{q['text']}**")
+    st.caption(f"Measures: {lens_translation(lens, q['variable'])}")
+
+    current = st.session_state.answers.get(q["id"], None)
+    options = list(SCALE_LABELS.keys())
+
+    choice = st.radio(
+        "Choose one:",
+        options,
+        index=options.index(current) if current in options else 2,
+        format_func=lambda x: SCALE_LABELS[x],
+        key=f"radio_{q['id']}",
+    )
+    st.session_state.answers[q["id"]] = int(choice)
+
+    col1, col2, col3 = st.columns([1, 1, 2])
+    with col1:
+        if st.button("Back", disabled=(idx == 0)):
+            st.session_state.idx = max(0, idx - 1)
+            st.rerun()
+    with col2:
+        if st.button("Next", disabled=(idx >= total - 1)):
+            st.session_state.idx = min(total - 1, idx + 1)
+            st.rerun()
+    with col3:
+        if st.button("Finish & Score", type="primary"):
+            st.session_state.stage = "results"
+            st.rerun()
+
+# --------------------------
+# Readout renderer (human tone)
+# --------------------------
+def render_readout(title, lens, questions_all, answers_all):
+    overall, per_variable, scored_qs_sorted = compute_scores(questions_all, answers_all)
+
+    st.subheader(title)
+    st.write(lens_readout_intro(lens))
+    st.metric("Overall Score (0–100)", f"{overall:.1f}")
+
+    # Variable scores
+    st.write("### Category scores")
+    for v in VARIABLE_WEIGHTS.keys():
+        if v not in per_variable:
+            continue
+        info = per_variable[v]
+        label = lens_translation(lens, v)
+        st.write(
+            f"- **{label}**: **{info['pct']:.1f}** — {compassionate_zone_line(info['zone'])} "
+            f"(volatility {info['volatility']:.0f}/100)"
+        )
+
+    # Strengths + pressure points
+    vars_present = [(v, per_variable[v]["pct"]) for v in per_variable]
+    vars_present_sorted = sorted(vars_present, key=lambda x: x[1]) if vars_present else []
+
+    targets = choose_followup_targets(per_variable)
+
+    if vars_present_sorted:
+        lowest = vars_present_sorted[0][0]
+        highest = vars_present_sorted[-1][0]
+        low_label = lens_translation(lens, lowest)
+        high_label = lens_translation(lens, highest)
+
+        st.write("### Where you are")
+        st.write(f"- **What’s holding steady:** {high_label} (**{per_variable[highest]['pct']:.1f}**)")
+        st.write(f"- **Where pressure is building:** {low_label} (**{per_variable[lowest]['pct']:.1f}**) — {compassionate_zone_line(per_variable[lowest]['zone'])}")
+        st.write(compassionate_summary(lens, low_label))
+
+        st.write("### What’s dragging you down (lowest signals)")
+        for v, s, w, q, a in scored_qs_sorted[:5]:
+            st.write(f"- {q['text']}  \n  ↳ signal **{s}/4** (weight {w})")
+
+        st.write("### Best next move (smallest lever)")
+        low_var_items = [t for t in scored_qs_sorted if t[0] == lowest]
+        if low_var_items:
+            lever = sorted(low_var_items, key=lambda t: (t[1], -t[2]))[0]
+            v, s, w, q, a = lever
+            st.write(f"**Start here:** {q['text']}")
+            st.caption("You’re not fixing everything at once. You’re stabilizing the weakest point first.")
+
+        st.write("### Continue evaluation focus")
+        st.write("- We’ll ask 10 follow-ups mainly in these areas:")
+        for v in targets:
+            st.write(f"  - {lens_translation(lens, v)}")
+
+    return overall, per_variable, scored_qs_sorted, targets
+
+# --------------------------
+# Results (after 25)
+# --------------------------
+if st.session_state.stage == "results":
+    lens = st.session_state.lens
+    qs = st.session_state.active_questions
+    answers = st.session_state.answers
+
+    overall, per_variable, scored_sorted, targets = render_readout(
+        title="Readout (after 25 questions)",
+        lens=lens,
+        questions_all=qs,
+        answers_all=answers,
+    )
+
+    st.divider()
+
+    already = set([q["id"] for q in qs])
+    followups = pick_followup_questions(lens, targets, already_asked_ids=already, n=10)
+    if any(q["id"] in already for q in followups):
+        st.info("Follow-ups may repeat right now because each lens only has 25 questions. Add more questions to remove repeats.")
+
+    colA, colB, colC = st.columns([2, 1, 1])
+    with colA:
+        if st.button("Continue evaluation (10 follow-ups)", type="primary"):
+            st.session_state.followup_targets = targets
+            st.session_state.followup_questions = followups
+            st.session_state.followup_answers = {}
+            st.session_state.followup_idx = 0
+            st.session_state.stage = "followups"
+            st.rerun()
+    with colB:
+        if st.button("New run (same lens)"):
+            bank = QUESTION_BANK[lens][:]
+            random.shuffle(bank)
+            k = min(25, len(bank))
+            st.session_state.active_questions = random.sample(bank, k=k)
+            st.session_state.answers = {}
+            st.session_state.idx = 0
+            st.session_state.stage = "questions"
+            st.rerun()
+    with colC:
+        if st.button("Change lens"):
+            reset_run()
+            st.rerun()
+
+    st.write("### Export (copy/paste)")
+    st.code(
+        {
+            "lens": lens,
+            "phase": "after_25",
+            "overall": round(overall, 2),
+            "variables": {v: round(per_variable[v]["pct"], 2) for v in per_variable},
+            "answers": answers,
+            "targets": targets,
+        },
+        language="python",
+    )
+
 # --------------------------
 # Follow-ups (10)
 # --------------------------
@@ -646,6 +1712,11 @@ if st.session_state.stage == "results2":
             st.rerun()
 
 # --------------------------
+# Notes: Adding more questions (quick reminder)
+# --------------------------
+st.sidebar.divider()
+st.sidebar.caption("To add more questions: append dicts into QUESTION_BANK['Interpersonal'/'Financial'/'Big Picture'] with unique ids (i26, f26, b26...).")
+
 # Notes: Adding more questions (quick reminder)
 # --------------------------
 st.sidebar.divider()
