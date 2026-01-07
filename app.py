@@ -15,7 +15,7 @@ st.set_page_config(page_title="Trifactor (25Q + 10)", layout="centered")
 # UI Header
 # --------------------------
 st.title("Trifactor (25 questions)")
-st.caption("Pick a lens first. Same scoring. Different lens. Randomized questions + targeted follow-ups.")
+st.caption("Three lenses. One pressure point.")
 
 # --------------------------
 # Constants / Scale
@@ -131,6 +131,31 @@ QUESTION_BANK = {
         {"id":"i23","text":"How often do you recover quickly after conflict?","variable":"Baseline","weight":1.1,"reverse":False},
         {"id":"i24","text":"How often do you ask clarifying questions instead of assuming intent?","variable":"Feedback","weight":1.0,"reverse":False},
         {"id":"i25","text":"How often do you feel you’re walking on eggshells?","variable":"Baseline","weight":1.3,"reverse":True},
+        {"id":"i51","text":"How often do you notice resentment building before you name it?","variable":"Feedback","weight":1.2,"reverse":True},
+        {"id":"i52","text":"How often do you recover quickly after interpersonal strain?","variable":"Baseline","weight":1.1,"reverse":False},
+        {"id":"i53","text":"How often do you feel conversations require translation instead of clarity?","variable":"Clarity","weight":1.2,"reverse":True},
+        {"id":"i54","text":"How often do you address tone instead of content when tension arises?","variable":"Execution","weight":1.0,"reverse":False},
+        {"id":"i55","text":"How often do you feel relational effort is uneven?","variable":"Resources","weight":1.2,"reverse":True},
+        {"id":"i56","text":"How often do you say no without justification?","variable":"Boundaries","weight":1.3,"reverse":False},
+        {"id":"i57","text":"How often do misunderstandings persist longer than necessary?","variable":"Feedback","weight":1.1,"reverse":True},
+        {"id":"i58","text":"How often do you revisit unresolved conversations?","variable":"Execution","weight":1.1,"reverse":True},
+        {"id":"i59","text":"How often do you feel relationally resourced rather than depleted?","variable":"Resources","weight":1.3,"reverse":False},
+        {"id":"i60","text":"How often do you check assumptions before reacting?","variable":"Feedback","weight":1.0,"reverse":False},
+        {"id":"i61","text":"How often do you feel pressure to maintain harmony at your expense?","variable":"Boundaries","weight":1.2,"reverse":True},
+        {"id":"i62","text":"How often do you name patterns instead of incidents?","variable":"Clarity","weight":1.2,"reverse":False},
+        {"id":"i63","text":"How often do you feel conversations reset rather than compound?","variable":"Baseline","weight":1.1,"reverse":False},
+        {"id":"i64","text":"How often do you feel safe disagreeing?","variable":"Resources","weight":1.2,"reverse":False},
+        {"id":"i65","text":"How often do you delay resolution due to emotional fatigue?","variable":"Baseline","weight":1.1,"reverse":True},
+        {"id":"i66","text":"How often do you follow through on relational agreements?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"i67","text":"How often do you feel conversations end cleanly?","variable":"Clarity","weight":1.1,"reverse":False},
+        {"id":"i68","text":"How often do you absorb blame to keep peace?","variable":"Boundaries","weight":1.2,"reverse":True},
+        {"id":"i69","text":"How often do you experience mutual accountability?","variable":"Feedback","weight":1.2,"reverse":False},
+        {"id":"i70","text":"How often do you exit interactions with increased trust?","variable":"Resources","weight":1.3,"reverse":False},
+        {"id":"i71","text":"How often do you recognize emotional debt accumulating?","variable":"Feedback","weight":1.1,"reverse":False},
+        {"id":"i72","text":"How often do you state needs without apology?","variable":"Boundaries","weight":1.2,"reverse":False},
+        {"id":"i73","text":"How often do you feel relational stability across time?","variable":"Baseline","weight":1.2,"reverse":False},
+        {"id":"i74","text":"How often do you resolve issues before they resurface?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"i75","text":"How often do relationships feel directionally improving?","variable":"Resources","weight":1.3,"reverse":False},
     ],
     "Financial": [
         {"id":"f01","text":"How often do you know your exact cash position (today) without guessing?","variable":"Clarity","weight":1.3,"reverse":False},
@@ -208,6 +233,31 @@ QUESTION_BANK = {
         {"id":"f48","text":"How often do you feel supported rather than cornered financially?","variable":"Resources","weight":1.2,"reverse":False},
         {"id":"f49","text":"How often do you treat finances as a system instead of emergencies?","variable":"Clarity","weight":1.3,"reverse":False},
         {"id":"f50","text":"How often do you recover equilibrium after a hit?","variable":"Baseline","weight":1.2,"reverse":False},
+        {"id":"f51","text":"How often do you recover financially after an unexpected hit?","variable":"Baseline","weight":1.2,"reverse":False},
+        {"id":"f52","text":"How often do financial worries bleed into other decisions?","variable":"Baseline","weight":1.1,"reverse":True},
+        {"id":"f53","text":"How often do you recognize false economies?","variable":"Feedback","weight":1.1,"reverse":False},
+        {"id":"f54","text":"How often do you choose flexibility over optimization?","variable":"Clarity","weight":1.2,"reverse":False},
+        {"id":"f55","text":"How often do fixed costs feel constraining?","variable":"Resources","weight":1.2,"reverse":True},
+        {"id":"f56","text":"How often do you decline opportunities due to cash timing?","variable":"Execution","weight":1.1,"reverse":True},
+        {"id":"f57","text":"How often do you feel financially brittle?","variable":"Baseline","weight":1.2,"reverse":True},
+        {"id":"f58","text":"How often do you know your break-even point?","variable":"Clarity","weight":1.3,"reverse":False},
+        {"id":"f59","text":"How often do you re-negotiate obligations?","variable":"Boundaries","weight":1.1,"reverse":False},
+        {"id":"f60","text":"How often do you notice compounding stress from small leaks?","variable":"Feedback","weight":1.1,"reverse":False},
+        {"id":"f61","text":"How often do you act to reduce fragility?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"f62","text":"How often do you feel optional rather than cornered?","variable":"Resources","weight":1.3,"reverse":False},
+        {"id":"f63","text":"How often do you avoid financial commitments that limit exit?","variable":"Boundaries","weight":1.2,"reverse":False},
+        {"id":"f64","text":"How often do you track downside as carefully as upside?","variable":"Clarity","weight":1.1,"reverse":False},
+        {"id":"f65","text":"How often do financial decisions age well?","variable":"Feedback","weight":1.2,"reverse":False},
+        {"id":"f66","text":"How often do you feel one bill away from disruption?","variable":"Baseline","weight":1.2,"reverse":True},
+        {"id":"f67","text":"How often do you trade short-term relief for long-term pressure?","variable":"Feedback","weight":1.1,"reverse":True},
+        {"id":"f68","text":"How often do you preserve cash as leverage?","variable":"Resources","weight":1.3,"reverse":False},
+        {"id":"f69","text":"How often do you act early instead of waiting for crisis?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"f70","text":"How often do you understand second-order financial effects?","variable":"Clarity","weight":1.2,"reverse":False},
+        {"id":"f71","text":"How often do you feel financially boxed in?","variable":"Baseline","weight":1.1,"reverse":True},
+        {"id":"f72","text":"How often do you intentionally simplify finances?","variable":"Boundaries","weight":1.1,"reverse":False},
+        {"id":"f73","text":"How often do you correct course without self-blame?","variable":"Feedback","weight":1.0,"reverse":False},
+        {"id":"f74","text":"How often do you maintain financial slack?","variable":"Resources","weight":1.3,"reverse":False},
+        {"id":"f75","text":"How often does your financial system feel resilient?","variable":"Baseline","weight":1.2,"reverse":False},
     ],
     "Big Picture": [
         {"id":"b01","text":"How clear is your north star (what you’re building / aiming at)?","variable":"Clarity","weight":1.3,"reverse":False},
@@ -260,6 +310,31 @@ QUESTION_BANK = {
         {"id":"b48","text":"How often do you maintain momentum without burnout?","variable":"Resources","weight":1.2,"reverse":False},
         {"id":"b49","text":"How often do you execute the smallest viable step?","variable":"Execution","weight":1.1,"reverse":False},
         {"id":"b50","text":"How often does the system feel directionally sound?","variable":"Baseline","weight":1.2,"reverse":False},
+        {"id":"b51","text":"How often do you feel effort exceeds return?","variable":"Feedback","weight":1.2,"reverse":True},
+        {"id":"b52","text":"How often do you feel directionally aligned?","variable":"Baseline","weight":1.2,"reverse":False},
+        {"id":"b53","text":"How often do you notice leverage decay?","variable":"Feedback","weight":1.1,"reverse":False},
+        {"id":"b54","text":"How often do you prune initiatives intentionally?","variable":"Boundaries","weight":1.2,"reverse":False},
+        {"id":"b55","text":"How often do you experience strategic drift?","variable":"Baseline","weight":1.1,"reverse":True},
+        {"id":"b56","text":"How often do you simplify the system to regain control?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"b57","text":"How often do you feel supported by structure?","variable":"Resources","weight":1.2,"reverse":False},
+        {"id":"b58","text":"How often do you recognize misaligned incentives?","variable":"Clarity","weight":1.3,"reverse":False},
+        {"id":"b59","text":"How often do you feel busy but ineffective?","variable":"Baseline","weight":1.2,"reverse":True},
+        {"id":"b60","text":"How often do you redesign instead of push harder?","variable":"Feedback","weight":1.1,"reverse":False},
+        {"id":"b61","text":"How often do you maintain coherence across efforts?","variable":"Clarity","weight":1.2,"reverse":False},
+        {"id":"b62","text":"How often do you stop initiatives that aren’t working?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"b63","text":"How often do constraints feel informative rather than limiting?","variable":"Resources","weight":1.1,"reverse":False},
+        {"id":"b64","text":"How often do you feel pulled off-mission?","variable":"Baseline","weight":1.1,"reverse":True},
+        {"id":"b65","text":"How often do you re-anchor to first principles?","variable":"Clarity","weight":1.3,"reverse":False},
+        {"id":"b66","text":"How often do you reduce entropy intentionally?","variable":"Execution","weight":1.1,"reverse":False},
+        {"id":"b67","text":"How often do you feel leverage compounding?","variable":"Resources","weight":1.2,"reverse":False},
+        {"id":"b68","text":"How often do you notice when effort stops scaling?","variable":"Feedback","weight":1.2,"reverse":False},
+        {"id":"b69","text":"How often do you choose focus over expansion?","variable":"Boundaries","weight":1.2,"reverse":False},
+        {"id":"b70","text":"How often does the system self-correct?","variable":"Baseline","weight":1.1,"reverse":False},
+        {"id":"b71","text":"How often do you exit paths cleanly?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"b72","text":"How often do you maintain strategic slack?","variable":"Resources","weight":1.3,"reverse":False},
+        {"id":"b73","text":"How often do you see around second-order effects?","variable":"Clarity","weight":1.2,"reverse":False},
+        {"id":"b74","text":"How often do you course-correct without panic?","variable":"Feedback","weight":1.1,"reverse":False},
+        {"id":"b75","text":"How often does the direction still feel worth pursuing?","variable":"Baseline","weight":1.2,"reverse":False},
     ],
 }
 
@@ -421,7 +496,10 @@ if st.session_state.stage == "setup":
         key="radio_lens_setup_v1",
     )
 
-    st.caption("This only changes which questions are asked and how the readout is worded. Scoring stays identical.")
+   st.caption(
+    "This doesn’t give insight. It gives prioritization. "
+    "You’ll see which part is actually costing you the most right now."
+)
 
     if st.button("Start 25 questions", type="primary", key="btn_start_25_v1"):
         lens = st.session_state.lens
