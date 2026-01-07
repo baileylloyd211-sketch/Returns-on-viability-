@@ -497,7 +497,7 @@ if st.session_state.stage == "setup":
     )
 
    st.caption(
-    "This doesn’t give insight. It gives prioritization. "
+    "This doesn’t give insight. It gives prioritization."
     "You’ll see which part is actually costing you the most right now."
 )
 
