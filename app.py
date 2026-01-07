@@ -581,6 +581,17 @@ def render_readout(title, lens, questions_all, answers_all):
             f"- **{label}**: **{info['pct']:.1f}** — {compassionate_zone_line(info['zone'])} "
             f"(volatility {info['volatility']:.0f}/100)"
         )
+    # Explain volatility cause (new)
+    var_items = [t for t in scored_qs_sorted if t[0] == v]
+    if len(var_items) >= 2:
+        weakest = sorted(var_items, key=lambda t: t[1])[0]
+        strongest = sorted(var_items, key=lambda t: -t[1])[0]
+
+        if abs(strongest[1] - weakest[1]) >= 2:
+            st.caption(
+                f"Volatility here comes from inconsistency between: "
+                f"“{strongest[3]['text']}” and “{weakest[3]['text']}”."
+        )
 
     vars_present_sorted = sorted(
         [(v, per_variable[v]["pct"]) for v in per_variable],
