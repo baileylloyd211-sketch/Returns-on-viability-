@@ -504,7 +504,10 @@ def render_readout(title, lens, questions_all, answers_all):
             f"(volatility {info['volatility']:.0f}/100)"
         )
 
-    vars_present_sorted = sorted([(v, per_variable[v]["pct"]) for v in per_variable], key=lambda x: x[1])
+    vars_present_sorted = sorted(
+        [(v, per_variable[v]["pct"]) for v in per_variable],
+        key=lambda x: x[1]
+    )
     targets = choose_followup_targets(per_variable)
 
     if vars_present_sorted:
@@ -512,6 +515,11 @@ def render_readout(title, lens, questions_all, answers_all):
         highest = vars_present_sorted[-1][0]
         low_label = lens_translation(lens, lowest)
         high_label = lens_translation(lens, highest)
+
+        # Verdict line (new)
+        st.markdown(
+            f"**Right now, the system isn’t failing everywhere — it’s failing most at _{low_label}_.**"
+        )
 
         st.write("### Where you are")
         st.write(f"- **What’s holding steady:** {high_label} (**{per_variable[highest]['pct']:.1f}**)")
@@ -525,7 +533,8 @@ def render_readout(title, lens, questions_all, answers_all):
         for v, s, w, q, a in scored_qs_sorted[:5]:
             st.write(f"- {q['text']}  \n  ↳ signal **{s}/4** (weight {w})")
 
-        st.write("### Best next move (smallest lever)")
+        # Renamed header (new)
+        st.write("### Start here (smallest stabilizing lever)")
         low_var_items = [t for t in scored_qs_sorted if t[0] == lowest]
         if low_var_items:
             lever = sorted(low_var_items, key=lambda t: (t[1], -t[2]))[0]
@@ -533,12 +542,33 @@ def render_readout(title, lens, questions_all, answers_all):
             st.write(f"**Start here:** {q['text']}")
             st.caption("You’re not fixing everything at once. You’re stabilizing the weakest point first.")
 
+        # Leash block (new)
+        st.divider()
+        st.markdown(
+            "**This tool shows you where the pressure is.**  \n"
+            "**It does not design the fix.**"
+        )
+        st.markdown(
+            "If you’re trying to resolve something complex, layered, or long-standing, "
+            "the next step isn’t more questions — it’s interpretation."
+        )
+        st.markdown("All contact and follow-up options are provided inside the app.")
+        st.caption(
+            "Trifactor is a pressure-mapping tool for clarity and prioritization. "
+            "It is not therapy, coaching, or professional advice."
+        )
+        st.caption(
+            "Run this once a week. If the lowest area doesn’t change after two runs, "
+            "you’re pushing the wrong lever."
+        )
+
         st.write("### Continue evaluation focus")
         st.write("- We’ll ask 10 follow-ups mainly in these areas:")
         for v in targets:
             st.write(f"  - {lens_translation(lens, v)}")
 
     return overall, per_variable, scored_qs_sorted, targets
+
 
 # --------------------------
 # Leash / Completion Framing
