@@ -496,7 +496,7 @@ if st.session_state.stage == "setup":
         key="radio_lens_setup_v1",
     )
 
-   st.caption(
+    st.caption(
     "This doesn’t give insight. It gives prioritization."
     "You’ll see which part is actually costing you the most right now."
 )
