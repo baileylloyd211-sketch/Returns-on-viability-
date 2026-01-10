@@ -786,9 +786,9 @@ if st.session_state.stage == "followups":
             st.session_state.followup_idx = min(total - 1, idx + 1)
             st.rerun()
     with col3:
-    if st.button("Finish follow-ups & Re-score", type="primary", key="btn_fu_finish_v1"):
-        st.session_state.stage = "export_form"
-        st.rerun()
+         if st.button("Finish follow-ups & Re-score", type="primary", key="btn_fu_finish_v1"):
+            st.session_state.stage = "export_form"
+            st.rerun()
 # --------------------------
 # Export Form (between followups and results2)
 # --------------------------
