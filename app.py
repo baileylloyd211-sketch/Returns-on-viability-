@@ -789,7 +789,71 @@ if st.session_state.stage == "followups":
         if st.button("Finish follow-ups & Re-score", type="primary", key="btn_fu_finish_v1"):
             st.session_state.stage = "results2"
             st.rerun()
+# --------------------------
+# Export Form (between followups and results2)
+# --------------------------
+if st.session_state.stage == "export_form":
+    lens = st.session_state.lens
 
+    base_qs = st.session_state.active_questions
+    base_answers = st.session_state.answers
+
+    fqs = st.session_state.followup_questions
+    fu_answers_raw = st.session_state.followup_answers  # (qid, idx) -> val
+
+    merged_questions = base_qs[:] + fqs[:]
+    merged_answers = dict(base_answers)
+    for (qid, _i), val in fu_answers_raw.items():
+        merged_answers[qid] = int(val)
+
+    # (Optional) compute the numbers now so you can paste them into the form
+    overall2, per_var2, scored2, targets2 = render_readout(
+        title="Readout (after 25 + 10 follow-ups) — preview",
+        lens=lens,
+        questions_all=merged_questions,
+        answers_all=merged_answers,
+    )
+
+    st.divider()
+    st.write("### Save this run (Google Form)")
+    st.caption("Fill the form, then come back here and press Continue.")
+
+    # IMPORTANT: use your *embed* URL (docs.google.com/forms/d/e/.../viewform?embedded=true)
+    st.markdown(
+        """
+        <iframe
+        src=https://docs.google.com/forms/d/1rgrDeDp3GfMkvlSh3Gc-9MGtRom94zQ9qtEeq2QDbFA/edit?pli=1#settings"
+        width="100%"
+        height="1200"
+        frameborder="0"
+        marginheight="0"
+        marginwidth="0">
+        Loading…
+        </iframe>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.divider()
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        st.write("### Export (copy/paste into form)")
+        st.code(
+            {
+                "lens": lens,
+                "phase": "after_25_plus_10",
+                "overall": round(overall2, 2),
+                "variables": {v: round(per_var2[v]["pct"], 2) for v in per_var2},
+                "answers": merged_answers,
+                "targets": targets2,
+            },
+            language="python",
+        )
+
+    with col2:
+        if st.button("Continue to Results", type="primary", key="btn_continue_results2_v1"):
+            st.session_state.stage = "results2"
+            st.rerun()
 # --------------------------
 # Results (after 25 + 10)
 # --------------------------
