@@ -1,7 +1,360 @@
 import random
 from statistics import pstdev
 import streamlit as st
+import random
+from statistics import pstdev
+import streamlit as st
 
+# =========================================================
+# 3-Lens Diagnostic (25Q + 10 Follow-ups) — SINGLE FILE
+# - Lens selection happens FIRST (setup screen)
+# - Session state initialized BEFORE any stage checks
+# - Unique widget keys everywhere to avoid DuplicateWidgetID
+# ========================================================= 
+
+st.set_page_config(page_title="Trifactor (25Q + 10)", layout="centered")
+
+# --------------------------
+# UI Header
+# --------------------------
+st.title("Trifactor (25 questions)")
+st.caption("Three lenses. One pressure point.")
+
+# --------------------------
+# Constants / Scale
+# --------------------------
+LENSES = ["Interpersonal", "Financial", "Big Picture"]
+
+SCALE_LABELS = {
+    0: "0 — Not at all / Never",
+    1: "1 — Rarely",
+    2: "2 — Sometimes",
+    3: "3 — Often",
+    4: "4 — Almost always",
+}
+
+VARIABLE_WEIGHTS = {
+    "Baseline": 1.2,
+    "Clarity": 1.1,
+    "Resources": 1.1,
+    "Boundaries": 1.1,
+    "Execution": 1.2,
+    "Feedback": 1.0,
+}
+
+def clamp(n, lo, hi):
+    return max(lo, min(hi, n))
+
+def zone_name(score_0_100: float) -> str:
+    if score_0_100 < 45:
+        return "RED"
+    if score_0_100 < 70:
+        return "YELLOW"
+    return "GREEN"
+import random
+from statistics import pstdev
+import streamlit as st
+
+st.set_page_config(page_title="Trifactor Diagnostic", layout="centered")
+
+# ──────────────────────────────────────────────────────────────
+# Constants
+# ──────────────────────────────────────────────────────────────
+
+LENSES = ["Interpersonal", "Financial", "Big Picture"]
+
+SCALE_LABELS = {
+    0: "0 — Not at all / Never",
+    1: "1 — Rarely",
+    2: "2 — Sometimes",
+    3: "3 — Often",
+    4: "4 — Almost always",
+}
+
+VARIABLE_WEIGHTS = {
+    "Baseline": 1.2,
+    "Clarity": 1.1,
+    "Resources": 1.1,
+    "Boundaries": 1.1,
+    "Execution": 1.2,
+    "Feedback": 1.0,
+}
+
+# ──────────────────────────────────────────────────────────────
+# Helper Functions
+# ──────────────────────────────────────────────────────────────
+
+def clamp(n, lo, hi):
+    return max(lo, min(hi, n))
+
+
+def zone_name(score: float) -> str:  # 0–100
+    if score < 45:
+        return "RED"
+    if score < 70:
+        return "YELLOW"
+    return "GREEN"
+
+
+def zone_message(zone: str) -> str:
+    return {
+        "RED": "broken — needs urgent attention",
+        "YELLOW": "unstable — fragile under pressure",
+        "GREEN": "solid — working well",
+    }[zone]
+
+
+def lens_focus(lens: str) -> str:
+    return {
+        "Interpersonal": "relationship tension, clarity, boundaries, execution",
+        "Financial": "money stability, buffer, boundaries, execution",
+        "Big Picture": "mission clarity, resources, focus, execution, feedback",
+    }[lens]
+
+
+def variable_translation(lens: str, var: str) -> str:
+    translations = {
+        "Interpersonal": {
+            "Baseline": "Emotional stability under contact",
+            "Clarity": "Knowing what you want / what's true",
+            "Resources": "Support & emotional capacity",
+            "Boundaries": "Ability to hold limits",
+            "Execution": "Following through on difficult conversations",
+            "Feedback": "Repair & learning from conflict",
+        },
+        "Financial": {
+            "Baseline": "Stability under financial stress",
+            "Clarity": "Knowing your numbers & priorities",
+            "Resources": "Income, buffer, tools",
+            "Boundaries": "Control over spending & exposure",
+            "Execution": "Actually doing the necessary actions",
+            "Feedback": "Reviewing & closing leaks",
+        },
+        "Big Picture": {
+            "Baseline": "Overall momentum & stability",
+            "Clarity": "Clear direction & next step",
+            "Resources": "Energy, support, environment",
+            "Boundaries": "Protecting focus & saying no",
+            "Execution": "Shipping & completing work",
+            "Feedback": "Measuring & iterating",
+        },
+    }
+    return translations.get(lens, {}).get(var, var)
+
+
+def pressure_focus_summary(lens: str, weakest_var: str) -> str:
+    summaries = {
+        "Interpersonal": f"Biggest pressure is in **{weakest_var}** — likely too much emotional load or poor resolution patterns.",
+        "Financial": f"Biggest pressure is in **{weakest_var}** — usually buffer, system, or leak problem.",
+        "Big Picture": f"Biggest pressure is in **{weakest_var}** — goal is real, but structure/support isn't matching.",
+    }
+    return summaries.get(lens, f"Pressure concentrates in **{weakest_var}**.")
+
+
+# ──────────────────────────────────────────────────────────────
+# Question Bank (placeholder — fill with your real questions)
+# ──────────────────────────────────────────────────────────────
+
+QUESTION_BANK = {
+    "Interpersonal": [],  # ← your ~75+ questions here
+    "Financial": [],      # ← your ~75+ questions here
+    "Big Picture": [],    # ← your ~75+ questions here
+}
+
+# Note: Make sure every question has unique "id" across ALL lenses
+# Recommended structure:
+# {"id": "i01", "text": "...", "variable": "Baseline", "weight": 1.2, "reverse": True}
+
+# ──────────────────────────────────────────────────────────────
+# Session State Initialization
+# ──────────────────────────────────────────────────────────────
+
+defaults = {
+    "stage": "setup",
+    "lens": "Interpersonal",
+    "active_questions": [],
+    "answers": {},
+    "idx": 0,
+    "followup_questions": [],
+    "followup_answers": {},
+    "followup_idx": 0,
+    "followup_targets": [],
+}
+
+for key, value in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
+
+
+def reset_session():
+    for key, value in defaults.items():
+        st.session_state[key] = value
+    st.rerun()
+
+
+# ──────────────────────────────────────────────────────────────
+# UI – Header & Sidebar
+# ──────────────────────────────────────────────────────────────
+
+st.title("Trifactor")
+st.caption("Pressure mapping across three lenses")
+
+with st.sidebar:
+    st.header("Controls")
+    st.caption("25 initial questions + targeted follow-ups")
+    if st.button("Reset Everything", type="secondary"):
+        reset_session()
+
+# ──────────────────────────────────────────────────────────────
+# Setup Screen – Lens Selection
+# ──────────────────────────────────────────────────────────────
+
+if st.session_state.stage == "setup":
+    st.subheader("Choose your diagnostic lens")
+
+    st.session_state.lens = st.radio(
+        "Which area feels most pressurized right now?",
+        options=LENSES,
+        index=LENSES.index(st.session_state.lens),
+        horizontal=True,
+    )
+
+    st.markdown(
+        f"**Focus of this lens:** {lens_focus(st.session_state.lens)}  \n"
+        "The tool will show you **where** the system is weakest — not how to fix it yet."
+    )
+
+    if st.button("Start 25 Questions", type="primary"):
+        lens = st.session_state.lens
+        bank = QUESTION_BANK.get(lens, [])
+
+        if not bank:
+            st.error("Question bank for this lens is empty. Add questions first.")
+            st.stop()
+
+        # Random sample of 25 (or all if fewer)
+        k = min(25, len(bank))
+        st.session_state.active_questions = random.sample(bank, k=k)
+        st.session_state.answers = {}
+        st.session_state.idx = 0
+        st.session_state.stage = "questions"
+        st.rerun()
+
+# ──────────────────────────────────────────────────────────────
+# Questions Stage (25 questions) — starts here
+# ──────────────────────────────────────────────────────────────
+
+if st.session_state.stage == "questions":
+    # ── Your existing question loop code would go here ──
+    pass
+def compassionate_zone_line(zone: str) -> str:
+    return {
+        "RED": "needs support now (signal, not failure)",
+        "YELLOW": "workable, but inconsistent under stress",
+        "GREEN": "stable and helping you",
+    }.get(zone, zone)
+
+def lens_readout_intro(lens: str) -> str:
+    if lens == "Interpersonal":
+        return "Interpreting through **relationship dynamics**: tension, clarity, boundaries, follow-through."
+    if lens == "Financial":
+        return "Interpreting through **money stability + control**: clarity, buffer, boundaries, execution."
+    return "Interpreting through **mission control**: clarity, focus, resources, execution, feedback loops."
+
+def lens_translation(lens: str, variable: str) -> str:
+    mapping = {
+        "Interpersonal": {
+            "Baseline": "Emotional baseline under contact",
+            "Clarity": "What you want / what’s true",
+            "Resources": "Support + emotional bandwidth",
+            "Boundaries": "Limits + self-respect in action",
+            "Execution": "Having the talk / doing the thing",
+            "Feedback": "Repair, learning, reality-checking",
+        },
+----------------------
+QUESTION_BANK = {
+    "Interpersonal": [
+        {"id":"i01","text":"How often do you feel tense before interacting with a specific person?","variable":"Baseline","weight":1.2,"reverse":True},
+        {"id":"i02","text":"How often does one conversation ruin your whole day?","variable":"Baseline","weight":1.3,"reverse":True},
+        {"id":"i03","text":"How often do you avoid a conversation you know you need to have?","variable":"Execution","weight":1.2,"reverse":True},
+        {"id":"i04","text":"How clear are you about what you want from this relationship/situation?","variable":"Clarity","weight":1.3,"reverse":False},
+        {"id":"i05","text":"How often do you leave a talk unsure what was actually decided?","variable":"Clarity","weight":1.1,"reverse":True},
+        {"id":"i06","text":"How often do you say “yes” when you mean “no”?","variable":"Boundaries","weight":1.4,"reverse":True},
+        {"id":"i07","text":"How often do you tolerate behavior that you resent later?","variable":"Boundaries","weight":1.3,"reverse":True},
+        {"id":"i08","text":"How often do you communicate your limits early rather than late?","variable":"Boundaries","weight":1.2,"reverse":False},
+        {"id":"i09","text":"How supported do you feel by at least one person in your life?","variable":"Resources","weight":1.1,"reverse":False},
+        {"id":"i10","text":"How often do you feel alone carrying the emotional load?","variable":"Resources","weight":1.2,"reverse":True},
+        {"id":"i11","text":"How often do conflicts repeat without resolution?","variable":"Feedback","weight":1.2,"reverse":True},
+        {"id":"i12","text":"How often do you reflect after conflict and adjust your approach?","variable":"Feedback","weight":1.1,"reverse":False},
+        {"id":"i13","text":"How often do you interpret neutral behavior as hostile?","variable":"Feedback","weight":1.0,"reverse":True},
+        {"id":"i14","text":"How often do you apologize to restore peace even when you weren’t wrong?","variable":"Boundaries","weight":1.1,"reverse":True},
+        {"id":"i15","text":"How often do you directly ask for what you need?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"i16","text":"How often do you replay conversations in your head afterward?","variable":"Baseline","weight":1.0,"reverse":True},
+        {"id":"i17","text":"How often do you feel respected in the dynamic?","variable":"Resources","weight":1.2,"reverse":False},
+        {"id":"i18","text":"How often do you keep your word when you set a boundary?","variable":"Execution","weight":1.3,"reverse":False},
+        {"id":"i19","text":"How often do you use sarcasm/withdrawal instead of stating the issue?","variable":"Execution","weight":1.1,"reverse":True},
+        {"id":"i20","text":"How often do you feel you must perform to be valued?","variable":"Clarity","weight":1.0,"reverse":True},
+        {"id":"i21","text":"How often do you choose timing/location to improve the odds of a good talk?","variable":"Execution","weight":1.0,"reverse":False},
+        {"id":"i22","text":"How often do you communicate expectations before frustration builds?","variable":"Execution","weight":1.1,"reverse":False},
+        {"id":"i23","text":"How often do you recover quickly after conflict?","variable":"Baseline","weight":1.1,"reverse":False},
+        {"id":"i24","text":"How often do you ask clarifying questions instead of assuming intent?","variable":"Feedback","weight":1.0,"reverse":False},
+        {"id":"i25","text":"How often do you feel you’re walking on eggshells?","variable":"Baseline","weight":1.3,"reverse":True},
+        {"id":"i51","text":"How often do you notice resentment building before you name it?","variable":"Feedback","weight":1.2,"reverse":True},
+        {"id":"i52","text":"How often do you recover quickly after interpersonal strain?","variable":"Baseline","weight":1.1,"reverse":False},
+        {"id":"i53","text":"How often do you feel conversations require translation instead of clarity?","variable":"Clarity","weight":1.2,"reverse":True},
+        {"id":"i54","text":"How often do you address tone instead of content when tension arises?","variable":"Execution","weight":1.0,"reverse":False},
+        {"id":"i55","text":"How often do you feel relational effort is uneven?","variable":"Resources","weight":1.2,"reverse":True},
+        {"id":"i56","text":"How often do you say no without justification?","variable":"Boundaries","weight":1.3,"reverse":False},
+        {"id":"i57","text":"How often do misunderstandings persist longer than necessary?","variable":"Feedback","weight":1.1,"reverse":True},
+        {"id":"i58","text":"How often do you revisit unresolved conversations?","variable":"Execution","weight":1.1,"reverse":True},
+        {"id":"i59","text":"How often do you feel relationally resourced rather than depleted?","variable":"Resources","weight":1.3,"reverse":False},
+        {"id":"i60","text":"How often do you check assumptions before reacting?","variable":"Feedback","weight":1.0,"reverse":False},
+        {"id":"i61","text":"How often do you feel pressure to maintain harmony at your expense?","variable":"Boundaries","weight":1.2,"reverse":True},
+        {"id":"i62","text":"How often do you name patterns instead of incidents?","variable":"Clarity","weight":1.2,"reverse":False},
+        {"id":"i63","text":"How often do you feel conversations reset rather than compound?","variable":"Baseline","weight":1.1,"reverse":False},
+        {"id":"i64","text":"How often do you feel safe disagreeing?","variable":"Resources","weight":1.2,"reverse":False},
+        {"id":"i65","text":"How often do you delay resolution due to emotional fatigue?","variable":"Baseline","weight":1.1,"reverse":True},
+        {"id":"i66","text":"How often do you follow through on relational agreements?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"i67","text":"How often do you feel conversations end cleanly?","variable":"Clarity","weight":1.1,"reverse":False},
+        {"id":"i68","text":"How often do you absorb blame to keep peace?","variable":"Boundaries","weight":1.2,"reverse":True},
+        {"id":"i69","text":"How often do you experience mutual accountability?","variable":"Feedback","weight":1.2,"reverse":False},
+        {"id":"i70","text":"How often do you exit interactions with increased trust?","variable":"Resources","weight":1.3,"reverse":False},
+        {"id":"i71","text":"How often do you recognize emotional debt accumulating?","variable":"Feedback","weight":1.1,"reverse":False},
+        {"id":"i72","text":"How often do you state needs without apology?","variable":"Boundaries","weight":1.2,"reverse":False},
+        {"id":"i73","text":"How often do you feel relational stability across time?","variable":"Baseline","weight":1.2,"reverse":False},
+        {"id":"i74","text":"How often do you resolve issues before they resurface?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"i75","text":"How often do relationships feel directionally improving?","variable":"Resources","weight":1.3,"reverse":False},
+    ],
+    "Financial": [
+        {"id":"f01","text":"How often do you know your exact cash position (today) without guessing?","variable":"Clarity","weight":1.3,"reverse":False},
+        {"id":"f02","text":"How often do bills/fees surprise you?","variable":"Clarity","weight":1.2,"reverse":True},
+        {"id":"f03","text":"How often do you feel like you’re one emergency away from collapse?","variable":"Baseline","weight":1.3,"reverse":True},
+        {"id":"f04","text":"How often do you have a buffer (even small) after essentials?","variable":"Resources","weight":1.3,"reverse":False},
+        {"id":"f05","text":"How often do you spend to regulate mood/stress?","variable":"Feedback","weight":1.1,"reverse":True},
+        {"id":"f06","text":"How consistently do you track spending (even roughly)?","variable":"Execution","weight":1.2,"reverse":False},
+        {"id":"f07","text":"How often do you miss due dates?","variable":"Execution","weight":1.2,"reverse":True},
+        {"id":"f08","text":"How often do you avoid opening financial mail/notifications?","variable":"Boundaries","weight":1.1,"reverse":True},
+        {"id":"f09","text":"How often do you negotiate rates, call providers, or challenge charges?","variable":"Execution","weight":1.0,"reverse":False},
+        {"id":"f10","text":"How clear are you on your top 3 financial priorities this month?","variable":"Clarity","weight":1.2,"reverse":False},
+        {"id":"f11","text":"How often do impulse purchases break your plan?","variable":"Boundaries","weight":1.2,"reverse":True},
+        {"id":"f12","text":"How often do you review recurring subscriptions/auto-pay items?","variable":"Feedback","weight":1.0,"reverse":False},
+        {"id":"f13","text":"How often do you make a simple plan before spending (need vs want)?","variable":"Boundaries","weight":1.1,"reverse":False},
+        {"id":"f14","text":"How often does financial stress disrupt sleep/focus?","variable":"Baseline","weight":1.2,"reverse":True},
+        {"id":"f15","text":"How often do you feel your income is stable/predictable?","variable":"Resources","weight":1.2,"reverse":False},
+        {"id":"f16","text":"How often do you know your minimum survival number per month?","variable":"Clarity","weight":1.1,"reverse":False},
+        {"id":"f17","text":"How often do you take one concrete financial action per week?","variable":"Execution","weight":1.1,"reverse":False},
+        {"id":"f18","text":"How often do you use a system (notes/app/spreadsheet) to reduce chaos?","variable":"Execution","weight":1.1,"reverse":False},
+        {"id":"f19","text":"How often do you borrow/advance money to get through the month?","variable":"Resources","weight":1.1,"reverse":True},
+        {"id":"f20","text":"How often do you postpone decisions until they become emergencies?","variable":"Execution","weight":1.2,"reverse":True},
+        {"id":"f21","text":"How often do you set boundaries with others about money (loans, favors, guilt)?","variable":"Boundaries","weight":1.0,"reverse":False},
+        {"id":"f22","text":"How often do you feel ashamed about money (and hide it)?","variable":"Feedback","weight":1.0,"reverse":True},
+        {"id":"f23","text":"How often do you have a realistic plan for the next 30 days?","variable":"Clarity","weight":1.2,"reverse":False},
+        {"id":"f24","text":"How often do you follow that plan when stress hits?","variable":"Boundaries","weight":1.1,"reverse":False},
+        {"id":"f25","text":"How often do you recover quickly after a financial hit?","variable":"Baseline","weight":1.1,"reverse":False},
+        {"id":"i26","text":"How often do you feel braced or guarded before contact?","variable":"Baseline","weight":1.2,"reverse":True},
+        {"id":"i27","text":"How often do you feel responsible for managing the other person’s emotions?","variable":"Boundaries","weight":1.3,"reverse":True},
+        {"id":"i28","text":"How often do conversations drift instead of landing decisions?","variable":"Clarity","weight":1.1,"reverse":True},
+        {"id":"i29","text":"How often do you initiate repair after t
 # =========================================================
 # 3-Lens Diagnostic (25Q + 10 Follow-ups) — SINGLE FILE
 # - Lens selection happens FIRST (setup screen)
