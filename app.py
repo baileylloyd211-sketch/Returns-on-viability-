@@ -48,7 +48,202 @@ def zone_name(score_0_100: float) -> str:
     if score_0_100 < 70:
         return "YELLOW"
     return "GREEN"
+import random
+from statistics import pstdev
+import streamlit as st
 
+st.set_page_config(page_title="Trifactor Diagnostic", layout="centered")
+
+# ──────────────────────────────────────────────────────────────
+# Constants
+# ──────────────────────────────────────────────────────────────
+
+LENSES = ["Interpersonal", "Financial", "Big Picture"]
+
+SCALE_LABELS = {
+    0: "0 — Not at all / Never",
+    1: "1 — Rarely",
+    2: "2 — Sometimes",
+    3: "3 — Often",
+    4: "4 — Almost always",
+}
+
+VARIABLE_WEIGHTS = {
+    "Baseline": 1.2,
+    "Clarity": 1.1,
+    "Resources": 1.1,
+    "Boundaries": 1.1,
+    "Execution": 1.2,
+    "Feedback": 1.0,
+}
+
+# ──────────────────────────────────────────────────────────────
+# Helper Functions
+# ──────────────────────────────────────────────────────────────
+
+def clamp(n, lo, hi):
+    return max(lo, min(hi, n))
+
+
+def zone_name(score: float) -> str:  # 0–100
+    if score < 45:
+        return "RED"
+    if score < 70:
+        return "YELLOW"
+    return "GREEN"
+
+
+def zone_message(zone: str) -> str:
+    return {
+        "RED": "broken — needs urgent attention",
+        "YELLOW": "unstable — fragile under pressure",
+        "GREEN": "solid — working well",
+    }[zone]
+
+
+def lens_focus(lens: str) -> str:
+    return {
+        "Interpersonal": "relationship tension, clarity, boundaries, execution",
+        "Financial": "money stability, buffer, boundaries, execution",
+        "Big Picture": "mission clarity, resources, focus, execution, feedback",
+    }[lens]
+
+
+def variable_translation(lens: str, var: str) -> str:
+    translations = {
+        "Interpersonal": {
+            "Baseline": "Emotional stability under contact",
+            "Clarity": "Knowing what you want / what's true",
+            "Resources": "Support & emotional capacity",
+            "Boundaries": "Ability to hold limits",
+            "Execution": "Following through on difficult conversations",
+            "Feedback": "Repair & learning from conflict",
+        },
+        "Financial": {
+            "Baseline": "Stability under financial stress",
+            "Clarity": "Knowing your numbers & priorities",
+            "Resources": "Income, buffer, tools",
+            "Boundaries": "Control over spending & exposure",
+            "Execution": "Actually doing the necessary actions",
+            "Feedback": "Reviewing & closing leaks",
+        },
+        "Big Picture": {
+            "Baseline": "Overall momentum & stability",
+            "Clarity": "Clear direction & next step",
+            "Resources": "Energy, support, environment",
+            "Boundaries": "Protecting focus & saying no",
+            "Execution": "Shipping & completing work",
+            "Feedback": "Measuring & iterating",
+        },
+    }
+    return translations.get(lens, {}).get(var, var)
+
+
+def pressure_focus_summary(lens: str, weakest_var: str) -> str:
+    summaries = {
+        "Interpersonal": f"Biggest pressure is in **{weakest_var}** — likely too much emotional load or poor resolution patterns.",
+        "Financial": f"Biggest pressure is in **{weakest_var}** — usually buffer, system, or leak problem.",
+        "Big Picture": f"Biggest pressure is in **{weakest_var}** — goal is real, but structure/support isn't matching.",
+    }
+    return summaries.get(lens, f"Pressure concentrates in **{weakest_var}**.")
+
+
+# ──────────────────────────────────────────────────────────────
+# Question Bank (placeholder — fill with your real questions)
+# ──────────────────────────────────────────────────────────────
+
+QUESTION_BANK = {
+    "Interpersonal": [],  # ← your ~75+ questions here
+    "Financial": [],      # ← your ~75+ questions here
+    "Big Picture": [],    # ← your ~75+ questions here
+}
+
+# Note: Make sure every question has unique "id" across ALL lenses
+# Recommended structure:
+# {"id": "i01", "text": "...", "variable": "Baseline", "weight": 1.2, "reverse": True}
+
+# ──────────────────────────────────────────────────────────────
+# Session State Initialization
+# ──────────────────────────────────────────────────────────────
+
+defaults = {
+    "stage": "setup",
+    "lens": "Interpersonal",
+    "active_questions": [],
+    "answers": {},
+    "idx": 0,
+    "followup_questions": [],
+    "followup_answers": {},
+    "followup_idx": 0,
+    "followup_targets": [],
+}
+
+for key, value in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
+
+
+def reset_session():
+    for key, value in defaults.items():
+        st.session_state[key] = value
+    st.rerun()
+
+
+# ──────────────────────────────────────────────────────────────
+# UI – Header & Sidebar
+# ──────────────────────────────────────────────────────────────
+
+st.title("Trifactor")
+st.caption("Pressure mapping across three lenses")
+
+with st.sidebar:
+    st.header("Controls")
+    st.caption("25 initial questions + targeted follow-ups")
+    if st.button("Reset Everything", type="secondary"):
+        reset_session()
+
+# ──────────────────────────────────────────────────────────────
+# Setup Screen – Lens Selection
+# ──────────────────────────────────────────────────────────────
+
+if st.session_state.stage == "setup":
+    st.subheader("Choose your diagnostic lens")
+
+    st.session_state.lens = st.radio(
+        "Which area feels most pressurized right now?",
+        options=LENSES,
+        index=LENSES.index(st.session_state.lens),
+        horizontal=True,
+    )
+
+    st.markdown(
+        f"**Focus of this lens:** {lens_focus(st.session_state.lens)}  \n"
+        "The tool will show you **where** the system is weakest — not how to fix it yet."
+    )
+
+    if st.button("Start 25 Questions", type="primary"):
+        lens = st.session_state.lens
+        bank = QUESTION_BANK.get(lens, [])
+
+        if not bank:
+            st.error("Question bank for this lens is empty. Add questions first.")
+            st.stop()
+
+        # Random sample of 25 (or all if fewer)
+        k = min(25, len(bank))
+        st.session_state.active_questions = random.sample(bank, k=k)
+        st.session_state.answers = {}
+        st.session_state.idx = 0
+        st.session_state.stage = "questions"
+        st.rerun()
+
+# ──────────────────────────────────────────────────────────────
+# Questions Stage (25 questions) — starts here
+# ──────────────────────────────────────────────────────────────
+
+if st.session_state.stage == "questions":
+    # ── Your existing question loop code would go here ──
+    pass
 def compassionate_zone_line(zone: str) -> str:
     return {
         "RED": "needs support now (signal, not failure)",
@@ -73,37 +268,7 @@ def lens_translation(lens: str, variable: str) -> str:
             "Execution": "Having the talk / doing the thing",
             "Feedback": "Repair, learning, reality-checking",
         },
-        "Financial": {
-            "Baseline": "Stability under money stress",
-            "Clarity": "Numbers + priorities clarity",
-            "Resources": "Income/buffer/tooling",
-            "Boundaries": "Spending boundaries + exposure control",
-            "Execution": "Bills/actions actually done",
-            "Feedback": "Review, adjust, remove leaks",
-        },
-        "Big Picture": {
-            "Baseline": "Stability + momentum",
-            "Clarity": "North star + next step",
-            "Resources": "Energy/support/environment",
-            "Boundaries": "Focus protection + saying no",
-            "Execution": "Shipping + completion",
-            "Feedback": "Measurement + iteration",
-        },
-    }
-    return mapping.get(lens, {}).get(variable, variable)
-
-def compassionate_summary(lens: str, lowest_label: str) -> str:
-    if lens == "Interpersonal":
-        return f"It looks like **{lowest_label}** is where relationship pressure is concentrating. Usually that means you’re carrying too much, or things aren’t resolving cleanly."
-    if lens == "Financial":
-        return f"It looks like **{lowest_label}** is where money pressure is concentrating. That’s usually a buffer/system issue—not a character flaw."
-    return f"It looks like **{lowest_label}** is where mission pressure is concentrating. Usually the goal is real, but the structure/bandwidth isn’t matching it yet."
-
-# --------------------------
-# Question Bank (25 per lens) — starter v1
-# Each question: id, text, variable, weight, reverse
-# reverse=True means higher answer is worse, so we flip internally: score = 4 - answer
-# --------------------------
+----------------------
 QUESTION_BANK = {
     "Interpersonal": [
         {"id":"i01","text":"How often do you feel tense before interacting with a specific person?","variable":"Baseline","weight":1.2,"reverse":True},
@@ -340,81 +505,202 @@ QUESTION_BANK = {
 
 # --------------------------
 # Scoring + Follow-ups
-# --------------------------
-def compute_scores(questions, answers):
-    per_var_num = {}
-    per_var_den = {}
-    per_var_raw = {}
-    scored_qs = []  # (variable, scored_0_4, weight, qdict, original_answer)
+# -----import random
+from statistics import pstdev
+import streamlit as st
 
-    for q in questions:
-        qid = q["id"]
-        if qid not in answers:
-            continue
-        a = int(answers[qid])
-        s = (4 - a) if q.get("reverse", False) else a  # 0..4 higher is better
-        v = q["variable"]
-        w = float(q.get("weight", 1.0))
+st.set_page_config(page_title="Trifactor Diagnostic", layout="centered")
 
-        per_var_num[v] = per_var_num.get(v, 0.0) + s * w
-        per_var_den[v] = per_var_den.get(v, 0.0) + w
-        per_var_raw.setdefault(v, []).append(s)
+# ──────────────────────────────────────────────────────────────
+# Constants
+# ──────────────────────────────────────────────────────────────
 
-        scored_qs.append((v, s, w, q, a))
+LENSES = ["Interpersonal", "Financial", "Big Picture"]
 
-    per_variable = {}
-    for v in per_var_num:
-        den = per_var_den.get(v, 1.0) or 1.0
-        mean_0_4 = per_var_num[v] / den
-        pct = (mean_0_4 / 4.0) * 100.0
+SCALE_LABELS = {
+    0: "0 — Not at all / Never",
+    1: "1 — Rarely",
+    2: "2 — Sometimes",
+    3: "3 — Often",
+    4: "4 — Almost always",
+}
 
-        raw_list = per_var_raw.get(v, [])
-        vol = 0.0
-        if len(raw_list) >= 2:
-            vol = (pstdev(raw_list) / 2.0) * 100.0
-        vol = clamp(vol, 0, 100)
+VARIABLE_WEIGHTS = {
+    "Baseline": 1.2,
+    "Clarity": 1.1,
+    "Resources": 1.1,
+    "Boundaries": 1.1,
+    "Execution": 1.2,
+    "Feedback": 1.0,
+}
 
-        per_variable[v] = {
-            "pct": pct,
-            "zone": zone_name(pct),
-            "volatility": vol,
-        }
+# ──────────────────────────────────────────────────────────────
+# Helper Functions
+# ──────────────────────────────────────────────────────────────
 
-    overall_num = 0.0
-    overall_den = 0.0
-    for v, info in per_variable.items():
-        vw = float(VARIABLE_WEIGHTS.get(v, 1.0))
-        overall_num += info["pct"] * vw
-        overall_den += vw
-    overall = (overall_num / overall_den) if overall_den else 0.0
+def clamp(n, lo, hi):
+    return max(lo, min(hi, n))
 
-    scored_qs_sorted = sorted(scored_qs, key=lambda t: (t[1], -t[2]))
-    return overall, per_variable, scored_qs_sorted
 
-def choose_followup_targets(per_variable):
-    if not per_variable:
-        return []
-    vars_sorted = sorted([(v, per_variable[v]["pct"]) for v in per_variable], key=lambda x: x[1])
-    lowest = vars_sorted[0][0]
-    reds = [v for v in per_variable if per_variable[v]["zone"] == "RED" and v != lowest]
-    yellows = [v for v in per_variable if per_variable[v]["zone"] == "YELLOW" and v != lowest]
+def zone_name(score: float) -> str:  # 0–100
+    if score < 45:
+        return "RED"
+    if score < 70:
+        return "YELLOW"
+    return "GREEN"
 
-    targets = [lowest] + reds
-    if len(targets) < 2:
-        for v in yellows:
-            if v not in targets:
-                targets.append(v)
-            if len(targets) >= 2:
-                break
-    return targets[:3]
 
-def pick_followup_questions(lens, targets, already_asked_ids, n=10):
-    bank = QUESTION_BANK[lens][:]
+def zone_message(zone: str) -> str:
+    return {
+        "RED": "broken — needs urgent attention",
+        "YELLOW": "unstable — fragile under pressure",
+        "GREEN": "solid — working well",
+    }[zone]
 
-    c1 = [q for q in bank if (q["id"] not in already_asked_ids) and (q["variable"] in targets)]
-    random.shuffle(c1)
-    picked = c1[:n]
 
+def lens_focus(lens: str) -> str:
+    return {
+        "Interpersonal": "relationship tension, clarity, boundaries, execution",
+        "Financial": "money stability, buffer, boundaries, execution",
+        "Big Picture": "mission clarity, resources, focus, execution, feedback",
+    }[lens]
+
+
+def variable_translation(lens: str, var: str) -> str:
+    translations = {
+        "Interpersonal": {
+            "Baseline": "Emotional stability under contact",
+            "Clarity": "Knowing what you want / what's true",
+            "Resources": "Support & emotional capacity",
+            "Boundaries": "Ability to hold limits",
+            "Execution": "Following through on difficult conversations",
+            "Feedback": "Repair & learning from conflict",
+        },
+        "Financial": {
+            "Baseline": "Stability under financial stress",
+            "Clarity": "Knowing your numbers & priorities",
+            "Resources": "Income, buffer, tools",
+            "Boundaries": "Control over spending & exposure",
+            "Execution": "Actually doing the necessary actions",
+            "Feedback": "Reviewing & closing leaks",
+        },
+        "Big Picture": {
+            "Baseline": "Overall momentum & stability",
+            "Clarity": "Clear direction & next step",
+            "Resources": "Energy, support, environment",
+            "Boundaries": "Protecting focus & saying no",
+            "Execution": "Shipping & completing work",
+            "Feedback": "Measuring & iterating",
+        },
+    }
+    return translations.get(lens, {}).get(var, var)
+
+
+def pressure_focus_summary(lens: str, weakest_var: str) -> str:
+    summaries = {
+        "Interpersonal": f"Biggest pressure is in **{weakest_var}** — likely too much emotional load or poor resolution patterns.",
+        "Financial": f"Biggest pressure is in **{weakest_var}** — usually buffer, system, or leak problem.",
+        "Big Picture": f"Biggest pressure is in **{weakest_var}** — goal is real, but structure/support isn't matching.",
+    }
+    return summaries.get(lens, f"Pressure concentrates in **{weakest_var}**.")
+
+
+# ──────────────────────────────────────────────────────────────
+# Question Bank (placeholder — fill with your real questions)
+# ──────────────────────────────────────────────────────────────
+
+QUESTION_BANK = {
+    "Interpersonal": [],  # ← your ~75+ questions here
+    "Financial": [],      # ← your ~75+ questions here
+    "Big Picture": [],    # ← your ~75+ questions here
+}
+
+# Note: Make sure every question has unique "id" across ALL lenses
+# Recommended structure:
+# {"id": "i01", "text": "...", "variable": "Baseline", "weight": 1.2, "reverse": True}
+
+# ──────────────────────────────────────────────────────────────
+# Session State Initialization
+# ──────────────────────────────────────────────────────────────
+
+defaults = {
+    "stage": "setup",
+    "lens": "Interpersonal",
+    "active_questions": [],
+    "answers": {},
+    "idx": 0,
+    "followup_questions": [],
+    "followup_answers": {},
+    "followup_idx": 0,
+    "followup_targets": [],
+}
+
+for key, value in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
+
+
+def reset_session():
+    for key, value in defaults.items():
+        st.session_state[key] = value
+    st.rerun()
+
+
+# ──────────────────────────────────────────────────────────────
+# UI – Header & Sidebar
+# ──────────────────────────────────────────────────────────────
+
+st.title("Trifactor")
+st.caption("Pressure mapping across three lenses")
+
+with st.sidebar:
+    st.header("Controls")
+    st.caption("25 initial questions + targeted follow-ups")
+    if st.button("Reset Everything", type="secondary"):
+        reset_session()
+
+# ──────────────────────────────────────────────────────────────
+# Setup Screen – Lens Selection
+# ──────────────────────────────────────────────────────────────
+
+if st.session_state.stage == "setup":
+    st.subheader("Choose your diagnostic lens")
+
+    st.session_state.lens = st.radio(
+        "Which area feels most pressurized right now?",
+        options=LENSES,
+        index=LENSES.index(st.session_state.lens),
+        horizontal=True,
+    )
+
+    st.markdown(
+        f"**Focus of this lens:** {lens_focus(st.session_state.lens)}  \n"
+        "The tool will show you **where** the system is weakest — not how to fix it yet."
+    )
+
+    if st.button("Start 25 Questions", type="primary"):
+        lens = st.session_state.lens
+        bank = QUESTION_BANK.get(lens, [])
+
+        if not bank:
+            st.error("Question bank for this lens is empty. Add questions first.")
+            st.stop()
+
+        # Random sample of 25 (or all if fewer)
+        k = min(25, len(bank))
+        st.session_state.active_questions = random.sample(bank, k=k)
+        st.session_state.answers = {}
+        st.session_state.idx = 0
+        st.session_state.stage = "questions"
+        st.rerun()
+
+# ──────────────────────────────────────────────────────────────
+# Questions Stage (25 questions) — starts here
+# ──────────────────────────────────────────────────────────────
+
+if st.session_state.stage == "questions":
+    # ── Your existing question loop code would go here ──
+    pass
     if len(picked) < n:
         c2 = [q for q in bank if (q["id"] not in already_asked_ids) and (q not in picked)]
         random.shuffle(c2)
