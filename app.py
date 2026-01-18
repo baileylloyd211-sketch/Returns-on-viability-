@@ -7,7 +7,7 @@ import streamlit as st
 # - Lens selection happens FIRST (setup screen)
 # - Session state initialized BEFORE any stage checks
 # - Unique widget keys everywhere to avoid DuplicateWidgetID
-# =========================================================
+# ========================================================= 
 
 st.set_page_config(page_title="Trifactor (25Q + 10)", layout="centered")
 
