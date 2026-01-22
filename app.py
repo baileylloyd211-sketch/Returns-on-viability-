@@ -43,7 +43,7 @@ VARIABLE_WEIGHTS = {
 }
 
 def clamp(n, lo, hi):
-    return max(lo, min(hi, n))
+    return max(lo, min(hi, n)
 
 def zone_name(score_0_100: float) -> str:
     if score_0_100 < 45:
@@ -325,6 +325,7 @@ QUESTION_BANK = {
         {"id":"i74","text":"How often do you resolve issues before they resurface?","variable":"Execution","weight":1.2,"reverse":False},
         {"id":"i75","text":"How often do relationships feel directionally improving?","variable":"Resources","weight":1.3,"reverse":False},
     ],
+        
     "Financial": [
         {"id":"f01","text":"How often do you know your exact cash position (today) without guessing?","variable":"Clarity","weight":1.3,"reverse":False},
         {"id":"f02","text":"How often do bills/fees surprise you?","variable":"Clarity","weight":1.2,"reverse":True},
