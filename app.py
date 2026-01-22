@@ -353,8 +353,8 @@ QUESTION_BANK = {
         {"id":"f25","text":"How often do you recover quickly after a financial hit?","variable":"Baseline","weight":1.1,"reverse":False},
         {"id":"i26","text":"How often do you feel braced or guarded before contact?","variable":"Baseline","weight":1.2,"reverse":True},
         {"id":"i27","text":"How often do you feel responsible for managing the other person’s emotions?","variable":"Boundaries","weight":1.3,"reverse":True},
-        {"id":"i28","text":"How often do conversations drift instead of landing decisions?","variable":"Clarity","weight":1.1,"reverse":True},
-        {"id":"i29","text":"How often do you initiate repair after t
+        {"id":"i28","text":"How often do conversations drift instead of landing decisions?","variable":"Clarity","weight":1.1,"reverse":True}
+    ]
 # =========================================================
 # 3-Lens Diagnostic (25Q + 10 Follow-ups) — SINGLE FILE
 # - Lens selection happens FIRST (setup screen)
